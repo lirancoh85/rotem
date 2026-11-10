@@ -63,8 +63,25 @@
 :root[data-theme='dark'] {
   --bg: #17130f;
   --surface: #211b16;
+  --cream: #2a2119;
   --ink: #f6ece0;
+  --ink-2: #d6c6b4;
+  --muted: #a39282;
   --line: #3a3027;
+  --line-strong: #4d4034;
+  --gold: #d2ad73;
+  --gold-ink: #e8c995;
+  --accent: #f1dfc4;
+  --accent-ink: #1b1510;
+  --danger: #ff8a80;
+  --danger-bg: #3b1c1a;
+  --s0-bg: #3a2d1b;
+  --s0-edge: #c9a066;
+  --s0-ink: #f8e8cf;
+  --s1-bg: #3a2526;
+  --s1-edge: #c48a8e;
+  --s1-ink: #f8e1e2;
+  --free-hover: #2a221b;
   color-scheme: dark;
 }
 
