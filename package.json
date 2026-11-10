@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:db": "vitest run tests/db",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name rotem-adani --branch main"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
@@ -32,6 +33,7 @@
     "pg": "^8.23.1",
     "typescript": "5.6",
     "vite": "^5.4.21",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "wrangler": "^4.160.0"
   }
 }
