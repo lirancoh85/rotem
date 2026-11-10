@@ -90,6 +90,18 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
     });
   });
 
+  describe('crossed-out slots', () => {
+    it('a blocked slot is stored per staff member and prevents bookings over it', async () => {
+      await tablet.query(
+        `insert into public.appointments (shop_id, staff_member_id, customer_name, starts_at, ends_at, is_blocked)
+         values ($1,$2,'חסום',$3,$4,true)`, [SHOP, ROTEM, il(D, '13:00'), il(D, '13:30')]);
+      expect((await errorOf(book(phone, ROTEM, D, '13:00', '13:30')))?.code).toBe('23P01');
+      expect(await errorOf(book(phone, SIVAN, D, '13:00', '13:30'))).toBeNull();
+      const { rows } = await phone.query('select is_blocked from public.appointments where staff_member_id=$1', [ROTEM]);
+      expect(rows).toEqual([{ is_blocked: true }]);
+    });
+  });
+
   describe('15-minute block splitting', () => {
     it('persists the split state and reads it back from another device', async () => {
       await setSplit(tablet, ROTEM, D, '09:00', true);

@@ -24,6 +24,8 @@ export interface Appointment {
   /** ISO UTC instants */
   startsAt: string;
   endsAt: string;
+  /** crossed-out slot (no customer) */
+  isBlocked?: boolean;
   updatedAt?: string;
 }
 
@@ -48,6 +50,7 @@ export interface AppointmentInput {
   customerPhone: string;
   service: string;
   notes: string;
+  isBlocked?: boolean;
 }
 
 export const DURATIONS = [15, 30, 45, 60] as const;

@@ -19,6 +19,7 @@ interface Props {
   dayEnd: number;
   tz: string;
   seed: FormSeed;
+  initialName?: string;
   editing?: Appointment | null;
   error: string | null;
   saving: boolean;
@@ -44,8 +45,8 @@ export function AppointmentForm(p: Props) {
         notes: editing.notes ?? '',
       };
     }
-    return { ...p.seed, customerName: '', customerPhone: '', service: '', notes: '' };
-  }, [editing, p.seed, p.tz]);
+    return { ...p.seed, customerName: p.initialName ?? '', customerPhone: '', service: '', notes: '' };
+  }, [editing, p.seed, p.tz, p.initialName]);
 
   const [v, setV] = useState<AppointmentInput>(initial);
   const set = <K extends keyof AppointmentInput>(k: K, val: AppointmentInput[K]) => setV((x) => ({ ...x, [k]: val }));

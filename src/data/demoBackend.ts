@@ -196,6 +196,7 @@ export class DemoBackend implements Backend {
       notes: input.notes.trim() || null,
       startsAt: localToIso(input.date, input.start, shop.timezone),
       endsAt: localToIso(input.date, input.start + input.duration, shop.timezone),
+      isBlocked: Boolean(input.isBlocked),
       updatedAt: new Date().toISOString(),
     };
     d.appointments = [...d.appointments.filter((a) => a.id !== appt.id), appt];

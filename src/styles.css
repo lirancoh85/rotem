@@ -291,7 +291,7 @@ body.modal-open { overflow: hidden; }
 .muted { color: var(--muted); }
 
 /* ---------- toast ---------- */
-.toast-wrap { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); inset-inline: 0; display: grid; place-items: center; z-index: 30; pointer-events: none; padding: 0 16px; }
+.toast-wrap { position: fixed; top: max(12px, env(safe-area-inset-top)); inset-inline: 0; display: grid; place-items: center; z-index: 30; pointer-events: none; padding: 0 16px; }
 .toast {
   pointer-events: auto; display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 14px;
   background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); font-weight: 600; animation: rise 0.15s ease-out;
@@ -347,3 +347,19 @@ body.modal-open { overflow: hidden; }
   :root { --time-col: 46px; }
   .free-label { font-size: 0.85rem; }
 }
+
+/* ---------- quick booking + crossed-out slots ---------- */
+.quick { display: grid; gap: 14px; }
+.quick-title { margin: 0; font-size: 1.3rem; padding-inline-end: 40px; }
+.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick-actions .btn { min-height: 56px; font-size: 1.1rem; }
+.btn.block-btn { background: var(--surface); color: var(--ink-2); border-style: dashed; }
+.strike { text-decoration: line-through; text-decoration-thickness: 2px; }
+.quick-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.link-btn { border: 0; background: none; color: var(--gold-ink); text-decoration: underline; min-height: 44px; padding: 0 4px; font-weight: 600; }
+.cell.appt.blocked {
+  align-items: center; justify-content: center; border-inline-start: 0; color: var(--muted);
+  background: repeating-linear-gradient(-45deg, var(--surface) 0 7px, var(--line) 7px 9px);
+  border: 1px solid var(--line-strong);
+}
+.blocked-label { font-weight: 700; text-decoration: line-through; text-decoration-thickness: 2px; background: var(--surface); padding: 0 8px; border-radius: 6px; }

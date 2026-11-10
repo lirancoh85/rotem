@@ -25,8 +25,8 @@ export function DateBar(p: {
   return (
     <div className="datebar">
       <div className="datebar-nav">
-        {/* RTL: "previous" sits on the right, "next" on the left */}
-        <button type="button" className="icon-btn" onClick={() => p.onDate(addDays(p.date, -1))} aria-label={he.prevDay}>
+        {/* RTL: the first item is on the right → "next day" on the right, "previous day" on the left */}
+        <button type="button" className="icon-btn" onClick={() => p.onDate(addDays(p.date, 1))} aria-label={he.nextDay} data-testid="next-day">
           ›
         </button>
         <button type="button" className="date-label" onClick={openPicker} aria-label={`${he.pickDate}: ${formatHebrewDate(p.date)}`}>
@@ -41,7 +41,7 @@ export function DateBar(p: {
             aria-hidden="true"
           />
         </button>
-        <button type="button" className="icon-btn" onClick={() => p.onDate(addDays(p.date, 1))} aria-label={he.nextDay}>
+        <button type="button" className="icon-btn" onClick={() => p.onDate(addDays(p.date, -1))} aria-label={he.prevDay} data-testid="prev-day">
           ‹
         </button>
         <button type="button" className={`btn today ${isToday ? 'is-today' : ''}`} onClick={() => p.onDate(todayLocal())}>

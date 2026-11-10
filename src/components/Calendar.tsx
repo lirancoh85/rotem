@@ -135,6 +135,23 @@ function CellView(
   const to = fmtTime(c.end);
   const len = c.end - c.start;
 
+  if (c.kind === 'appointment' && c.appt.isBlocked) {
+    return (
+      <button
+        type="button"
+        className={`cell appt blocked ${len <= 15 ? 'is-short' : ''}`}
+        style={{ gridColumn: col, gridRow: row }}
+        onClick={() => props.onAppointmentTap(c.appt)}
+        aria-label={he.blockedAria(staffName, from, to)}
+        data-testid="blocked"
+        data-staff-id={c.staffId}
+        data-start={from}
+      >
+        <span className="blocked-label">{he.blocked}</span>
+      </button>
+    );
+  }
+
   if (c.kind === 'appointment') {
     const a = c.appt;
     const fullLen = Math.round((Date.parse(a.endsAt) - Date.parse(a.startsAt)) / 60000);

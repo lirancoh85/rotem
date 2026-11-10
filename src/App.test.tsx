@@ -18,14 +18,14 @@ const free = (staff: string, start: string) =>
 const [ROTEM, SIVAN] = DEMO_STAFF;
 
 describe('appointment management (full app, Hebrew UI)', () => {
-  it('books a 30-minute appointment with Rotem preselected', async () => {
+  it('tapping a slot asks only for a name: type it, press Enter, booked for 30 minutes with Rotem', async () => {
     const { user } = setup();
     await screen.findByText('רותם', { selector: '[role=columnheader]' });
     await user.click(within(free(ROTEM.id, '10:00')).getByText('פנוי'));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('heading')).toHaveTextContent('תור חדש');
-    expect(within(dialog).getByRole('radio', { name: 'רותם' })).toHaveAttribute('aria-checked', 'true');
-    expect(within(dialog).getByRole('radio', { name: '30 דק׳' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(dialog).getByRole('heading')).toHaveTextContent('רותם · 10:00–10:30');
+    expect(within(dialog).getAllByRole('textbox')).toHaveLength(1);
+    expect(within(dialog).getByRole('button', { name: 'חסום משבצת' })).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('שם הלקוח'), 'שרון{Enter}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     const card = screen.getByRole('button', { name: /שרון אצל רותם, 10:00–10:30/ });
@@ -37,6 +37,7 @@ describe('appointment management (full app, Hebrew UI)', () => {
     const { user } = setup();
     await screen.findAllByTestId('free');
     await user.click(within(free(SIVAN.id, '09:00')).getByText('פנוי'));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'אפשרויות נוספות' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('radio', { name: 'סיון' })).toHaveAttribute('aria-checked', 'true');
     await user.click(within(dialog).getByRole('checkbox', { name: /פצל ל־15 דקות/ }));
@@ -69,7 +70,7 @@ describe('appointment management (full app, Hebrew UI)', () => {
     await act(() => other.createAppointment(DEMO_SHOP, {
       staffId: ROTEM.id, date: D, start: 720, duration: 30, customerName: 'מהטלפון', customerPhone: '', service: '', notes: '',
     }));
-    await user.click(within(dialog).getByRole('button', { name: 'שמור תור' }));
+    await user.click(within(dialog).getByRole('button', { name: 'שמור' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('כבר יש תור');
     expect(screen.getByRole('button', { name: /מהטלפון אצל רותם/ })).toBeInTheDocument();
   });
@@ -93,6 +94,46 @@ describe('appointment management (full app, Hebrew UI)', () => {
     expect(confirm).toHaveTextContent('למחוק את התור של רוני בשעה 10:00?');
     await user.click(within(confirm).getByRole('button', { name: 'מחק' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: /רוני/ })).not.toBeInTheDocument());
+  });
+
+  it('crosses out a slot and un-blocks it again', async () => {
+    const { user, other } = setup();
+    await screen.findAllByTestId('free');
+    await user.click(within(free(SIVAN.id, '13:00')).getByText('פנוי'));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'חסום משבצת' }));
+    const blocked = await screen.findByRole('button', { name: /סיון, 13:00–13:30, משבצת חסומה/ });
+    expect(blocked).toHaveTextContent('חסום');
+    // another device cannot book over a crossed-out slot
+    await expect(other.createAppointment(DEMO_SHOP, {
+      staffId: SIVAN.id, date: D, start: 780, duration: 30, customerName: 'x', customerPhone: '', service: '', notes: '',
+    })).rejects.toMatchObject({ code: 'OVERLAP' });
+    await user.click(blocked);
+    const confirm = await screen.findByRole('dialog', { name: 'ביטול חסימה' });
+    await user.click(within(confirm).getByRole('button', { name: 'בטל חסימה' }));
+    await waitFor(() => expect(free(SIVAN.id, '13:00')).toHaveAttribute('data-len', '30'));
+  });
+
+  it('requires a name before saving from the quick dialog', async () => {
+    const { user } = setup();
+    await screen.findAllByTestId('free');
+    await user.click(within(free(ROTEM.id, '16:00')).getByText('פנוי'));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'שמור' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('יש להזין את שם הלקוח');
+  });
+
+  it('puts "next day" on the right and "previous day" on the left (RTL order)', async () => {
+    const { user } = setup();
+    await screen.findAllByTestId('free');
+    const next = screen.getByRole('button', { name: 'היום הבא' });
+    const prev = screen.getByRole('button', { name: 'היום הקודם' });
+    // in an RTL row the earlier DOM node is on the right
+    expect(next.compareDocumentPosition(prev) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(next);
+    expect(screen.getByTestId('date-label')).toHaveTextContent('11 בנובמבר');
+    await user.click(prev);
+    await user.click(prev);
+    expect(screen.getByTestId('date-label')).toHaveTextContent('9 בנובמבר');
   });
 
   it('reflects changes made on another device in real time', async () => {

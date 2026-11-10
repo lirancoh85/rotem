@@ -9,6 +9,7 @@ import { useSalon } from './hooks/useSalon';
 import { Calendar } from './components/Calendar';
 import { AppointmentForm, type FormSeed } from './components/AppointmentForm';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { QuickBook } from './components/QuickBook';
 import { DateBar } from './components/DateBar';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
@@ -72,7 +73,7 @@ function SupabaseApp() {
   return <SalonApp key={session.user.id} backend={backend} onSignOut={() => backend.signOut()} />;
 }
 
-type FormState = { seed: FormSeed; editing: Appointment | null };
+type FormState = { seed: FormSeed; editing: Appointment | null; mode: 'quick' | 'full'; initialName?: string };
 
 const FILTER_KEY = 'rotem-staff-filter';
 function readFilter() {
@@ -92,6 +93,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Appointment | null>(null);
+  const [confirmUnblock, setConfirmUnblock] = useState<Appointment | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -125,14 +127,18 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const onFreeTap = useCallback(
     (staffId: string, start: number, split: boolean) => {
       setFormError(null);
-      setForm({ seed: { staffId, date, start, duration: split ? 15 : 30 }, editing: null });
+      setForm({ seed: { staffId, date, start, duration: split ? 15 : 30 }, editing: null, mode: 'quick' });
     },
     [date],
   );
   const onAppointmentTap = useCallback((appt: Appointment) => {
     setFormError(null);
+    if (appt.isBlocked) {
+      setConfirmUnblock(appt);
+      return;
+    }
     const s = utcToLocal(appt.startsAt);
-    setForm({ seed: { staffId: appt.staffId, date: s.date, start: s.minutes, duration: 30 }, editing: appt });
+    setForm({ seed: { staffId: appt.staffId, date: s.date, start: s.minutes, duration: 30 }, editing: appt, mode: 'full' });
   }, []);
 
   const runSplit = useCallback(
@@ -157,7 +163,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     setFormError(null);
     try {
       await salon.saveAppointment(input, form?.editing?.id);
-      notify(form?.editing ? he.savedEdit : he.savedNew);
+      notify(input.isBlocked ? he.blockedDone : form?.editing ? he.savedEdit : he.savedNew);
       setForm(null);
     } catch (e) {
       setFormError(he.errors[toAppError(e).code]);
@@ -234,8 +240,28 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         )}
       </main>
 
-      {form && shop && (
+      {form && shop && form.mode === 'quick' && (
+        <QuickBook
+          staffName={staff.find((s) => s.id === form.seed.staffId)?.name ?? ''}
+          start={form.seed.start}
+          duration={form.seed.duration}
+          error={formError}
+          saving={saving}
+          onSave={(name) => void onSave({ ...form.seed, customerName: name, customerPhone: '', service: '', notes: '' })}
+          onBlock={() =>
+            void onSave({ ...form.seed, customerName: he.blocked, customerPhone: '', service: '', notes: '', isBlocked: true })
+          }
+          onMore={(name) => {
+            setFormError(null);
+            setForm({ ...form, mode: 'full', initialName: name });
+          }}
+          onCancel={() => setForm(null)}
+        />
+      )}
+
+      {form && shop && form.mode === 'full' && (
         <AppointmentForm
+          initialName={form.initialName}
           staff={staff}
           dayStart={shop.dayStart}
           dayEnd={shop.dayEnd}
@@ -257,6 +283,25 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
           confirmLabel={he.confirmDelete}
           onConfirm={() => void doDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmUnblock && (
+        <ConfirmDialog
+          title={he.unblockTitle}
+          message={he.unblockQuestion(fmtTime(utcToLocal(confirmUnblock.startsAt, tz).minutes))}
+          confirmLabel={he.unblockConfirm}
+          onConfirm={async () => {
+            const a = confirmUnblock;
+            setConfirmUnblock(null);
+            try {
+              await salon.deleteAppointment(a.id);
+              notify(he.unblocked);
+            } catch (e) {
+              notify(he.errors[toAppError(e).code], 'error');
+            }
+          }}
+          onCancel={() => setConfirmUnblock(null)}
         />
       )}
 

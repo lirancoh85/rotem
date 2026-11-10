@@ -65,6 +65,11 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
     assert.ok(fontSize >= 15, `name font ${fontSize}px`);
     assert.ok(a.height >= 36, `touch target height ${a.height}`);
   });
+  await check('next day is on the right, previous day on the left', async () => {
+    const next = await box(page, '[data-testid=next-day]');
+    const prev = await box(page, '[data-testid=prev-day]');
+    assert.ok(next.x > prev.x, `next ${next.x} prev ${prev.x}`);
+  });
   await check('every visible text is Hebrew/RTL (document dir + lang)', async () => {
     const { dir, lang } = await page.evaluate(() => ({ dir: document.documentElement.dir, lang: document.documentElement.lang }));
     assert.equal(dir, 'rtl'); assert.equal(lang, 'he');
@@ -92,6 +97,11 @@ console.log('two devices (two windows sharing the demo backend)');
     await tablet.fill('input[placeholder="לדוגמה: דניאל"]', 'בדיקת סנכרון');
     await tablet.keyboard.press('Enter');
     await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיון, 14:00–14:30/ }).waitFor({ timeout: 3000 });
+  });
+  await check('crossing out a slot on the phone shows it crossed out on the tablet', async () => {
+    await phone.click(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="16:00"] .free-main`);
+    await phone.getByRole('button', { name: 'חסום משבצת' }).click();
+    await tablet.locator(`[data-testid=blocked][data-staff-id="${ROTEM}"][data-start="16:00"]`).waitFor({ timeout: 3000 });
   });
   await check('splitting on the phone appears on the tablet (Rotem only)', async () => {
     await phone.getByRole('button', { name: 'פיצול 15:00 של רותם לשני תורים של 15 דקות' }).click();

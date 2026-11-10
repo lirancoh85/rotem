@@ -16,6 +16,7 @@ export const rowToAppointment = (r: Row): Appointment => ({
   notes: (r.notes as string | null) ?? null,
   startsAt: new Date(r.starts_at as string).toISOString(),
   endsAt: new Date(r.ends_at as string).toISOString(),
+  isBlocked: Boolean(r.is_blocked),
   updatedAt: (r.updated_at as string | undefined) ?? undefined,
 });
 
@@ -36,7 +37,7 @@ export const rowToShop = (r: Row): Shop => ({
 });
 
 const APPT_COLS =
-  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, updated_at';
+  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, updated_at';
 
 function inputToRow(shop: Shop, input: AppointmentInput) {
   const nullIfEmpty = (s: string) => (s.trim() ? s.trim() : null);
@@ -49,6 +50,7 @@ function inputToRow(shop: Shop, input: AppointmentInput) {
     notes: nullIfEmpty(input.notes),
     starts_at: localToIso(input.date, input.start, shop.timezone),
     ends_at: localToIso(input.date, input.start + input.duration, shop.timezone),
+    is_blocked: Boolean(input.isBlocked),
   };
 }
 
