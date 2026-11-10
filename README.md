@@ -42,7 +42,7 @@ Tables: `shops`, `shop_members`, `staff_members`, `appointments` (with `staff_me
    from auth.users where email in ('rotem@example.com', 'sivan@example.com');
    ```
 4. **Configure the app**: copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
-5. `npm install && npm run build`, then deploy `dist/` (e.g. Vercel). On Android, open it in Chrome and use "Add to home screen".
+5. Deploy: Cloudflare builds and deploys this repo automatically on every push to `main` (Workers static assets, see `wrangler.toml`). Manual: `npm run deploy`. On Android, open it in Chrome and use "Add to home screen".
 
 Without Supabase settings, or with `?demo` in the URL, the app runs in **demo mode**. Data stays in that browser and syncs live between open windows, using the same rules as the database.
 

@@ -12,7 +12,7 @@
     "test:db": "vitest run tests/db",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
     "typecheck": "tsc -b",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name rotem-adani --branch main"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

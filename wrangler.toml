@@ -1,4 +1,7 @@
-# Cloudflare Pages (direct upload): npm run deploy
+# Cloudflare Workers (static assets). Built and deployed by Cloudflare from GitHub on every push to main.
 name = "rotem-adani"
-pages_build_output_dir = "dist"
 compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
