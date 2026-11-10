@@ -4,7 +4,8 @@
  */
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError } from './backend';
-import type { Appointment, AppointmentInput, Shop, SlotSplit, Staff } from '../domain/types';
+import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
+import { filterAppointments, linkCustomer, matchCustomers, type StoredCustomer } from '../domain/customers';
 import {
   blocksRequiringSplit,
   canMergeBlock,
@@ -12,13 +13,14 @@ import {
   toDayAppointments,
   validateAppointment,
 } from '../domain/schedule';
-import { localToIso, todayLocal, utcToLocal } from '../lib/time';
+import { addDays, localToIso, todayLocal, utcToLocal } from '../lib/time';
 
 export interface DemoData {
   shop: Shop;
   staff: Staff[];
   appointments: Appointment[];
   splits: SlotSplit[];
+  customers?: StoredCustomer[];
 }
 
 export interface DemoStore {
@@ -71,7 +73,7 @@ const newId = () =>
 
 export function seedDemoData(date = todayLocal()): DemoData {
   const [rotem, sivan] = DEMO_STAFF;
-  const mk = (staff: Staff, hhmm: string, dur: number, name: string, service: string | null = null): Appointment => {
+  const mk = (staff: Staff, hhmm: string, dur: number, name: string, service: string | null = null, day = date): Appointment => {
     const [h, m] = hhmm.split(':').map(Number);
     const start = h * 60 + m;
     return {
@@ -82,25 +84,37 @@ export function seedDemoData(date = todayLocal()): DemoData {
       customerPhone: null,
       service,
       notes: null,
-      startsAt: localToIso(date, start),
-      endsAt: localToIso(date, start + dur),
+      startsAt: localToIso(day, start),
+      endsAt: localToIso(day, start + dur),
       updatedAt: new Date(0).toISOString(),
     };
   };
+  const appointments = [
+    mk(rotem, '08:00', 30, 'דניאל', 'תספורת'),
+    mk(sivan, '08:30', 30, 'יוסי', 'תספורת'),
+    mk(rotem, '09:00', 15, 'דניאל', 'זקן'),
+    mk(rotem, '09:15', 15, 'אבי', 'זקן'),
+    mk(sivan, '09:00', 30, 'משה', 'תספורת'),
+    mk(rotem, '10:00', 30, 'שרון', 'פן'),
+    mk(sivan, '10:30', 30, 'רוני', 'תספורת'),
+    mk(rotem, '11:00', 60, 'גלעד', 'צבע'),
+    mk(sivan, '12:00', 45, 'נועה', 'תספורת + פן'),
+    mk(rotem, '17:00', 30, 'דניאל', 'תספורת', addDays(date, -7)),
+    mk(sivan, '10:00', 30, 'נועה', 'צבע', addDays(date, 7)),
+  ];
+  const phones: Record<string, string> = { דניאל: '050-1234567', נועה: '054-7654321', משה: '052-5550000' };
+  let customers: StoredCustomer[] = [];
+  for (const a of appointments) {
+    a.customerPhone = phones[a.customerName] ?? null;
+    const linked = linkCustomer(customers, { customerName: a.customerName, customerPhone: a.customerPhone ?? '' }, newId);
+    customers = linked.customers;
+    a.customerId = linked.id;
+  }
   return {
     shop: DEMO_SHOP,
     staff: DEMO_STAFF,
-    appointments: [
-      mk(rotem, '08:00', 30, 'דניאל', 'תספורת'),
-      mk(sivan, '08:30', 30, 'יוסי', 'תספורת'),
-      mk(rotem, '09:00', 15, 'דניאל', 'זקן'),
-      mk(rotem, '09:15', 15, 'אבי', 'זקן'),
-      mk(sivan, '09:00', 30, 'משה', 'תספורת'),
-      mk(rotem, '10:00', 30, 'שרון', 'פן'),
-      mk(sivan, '10:30', 30, 'רוני', 'תספורת'),
-      mk(rotem, '11:00', 60, 'גלעד', 'צבע'),
-      mk(sivan, '12:00', 45, 'נועה', 'תספורת + פן'),
-    ],
+    customers,
+    appointments,
     splits: [
       { shopId: DEMO_SHOP.id, staffId: rotem.id, date, blockStart: 9 * 60, isSplit: true },
       { shopId: DEMO_SHOP.id, staffId: sivan.id, date, blockStart: 13 * 60, isSplit: true },
@@ -186,6 +200,12 @@ export class DemoBackend implements Backend {
     if (err) throw new AppError(err);
     const existing = id ? d.appointments.find((a) => a.id === id) : undefined;
     if (id && !existing) throw new AppError('NOT_FOUND');
+    let customerId: string | null = null;
+    if (!input.isBlocked) {
+      const linked = linkCustomer(d.customers ?? [], input, newId);
+      d.customers = linked.customers;
+      customerId = linked.id;
+    }
     const appt: Appointment = {
       id: id ?? newId(),
       shopId: shop.id,
@@ -197,6 +217,7 @@ export class DemoBackend implements Backend {
       startsAt: localToIso(input.date, input.start, shop.timezone),
       endsAt: localToIso(input.date, input.start + input.duration, shop.timezone),
       isBlocked: Boolean(input.isBlocked),
+      customerId,
       updatedAt: new Date().toISOString(),
     };
     d.appointments = [...d.appointments.filter((a) => a.id !== appt.id), appt];
@@ -258,6 +279,18 @@ export class DemoBackend implements Backend {
     this.store.write(d);
     this.emit({ table: 'shops', type: 'upsert', row: d.shop });
     return d.shop;
+  }
+
+  async searchCustomers(_shopId: string, query: string): Promise<Customer[]> {
+    await this.delay();
+    const d = this.data();
+    return matchCustomers(d.customers ?? [], query, d.appointments);
+  }
+
+  async searchAppointments(_shopId: string, query: string, date: string | null): Promise<Appointment[]> {
+    await this.delay();
+    const d = this.data();
+    return filterAppointments(d.appointments, query, date, d.shop.timezone);
   }
 
   subscribe(_shopId: string, onChange: (e: ChangeEvent) => void, onStatus: (s: ConnectionStatus) => void) {

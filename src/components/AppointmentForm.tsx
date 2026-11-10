@@ -5,6 +5,7 @@ import { blockOf } from '../domain/schedule';
 import { fmtTime, durationLabel, utcToLocal } from '../lib/time';
 import { he } from '../i18n/he';
 import { Modal } from './Modal';
+import { CustomerField, type CustomerLookup } from './CustomerField';
 
 export interface FormSeed {
   staffId: string;
@@ -20,6 +21,10 @@ interface Props {
   tz: string;
   seed: FormSeed;
   initialName?: string;
+  initialPhone?: string;
+  initialCustomerId?: string | null;
+  lookup?: CustomerLookup;
+  onMove?(): void;
   editing?: Appointment | null;
   error: string | null;
   saving: boolean;
@@ -43,10 +48,18 @@ export function AppointmentForm(p: Props) {
         customerPhone: editing.customerPhone ?? '',
         service: editing.service ?? '',
         notes: editing.notes ?? '',
+        customerId: editing.customerId ?? null,
       };
     }
-    return { ...p.seed, customerName: p.initialName ?? '', customerPhone: '', service: '', notes: '' };
-  }, [editing, p.seed, p.tz, p.initialName]);
+    return {
+      ...p.seed,
+      customerName: p.initialName ?? '',
+      customerPhone: p.initialPhone ?? '',
+      customerId: p.initialCustomerId ?? null,
+      service: '',
+      notes: '',
+    };
+  }, [editing, p.seed, p.tz, p.initialName, p.initialPhone, p.initialCustomerId]);
 
   const [v, setV] = useState<AppointmentInput>(initial);
   const set = <K extends keyof AppointmentInput>(k: K, val: AppointmentInput[K]) => setV((x) => ({ ...x, [k]: val }));
@@ -103,33 +116,32 @@ export function AppointmentForm(p: Props) {
         )}
 
         <div className="field-row name-row">
-        <label className="field">
-          <span>{he.customerName}</span>
-          <input
+          <CustomerField
             ref={nameRef}
+            label={he.customerName}
             value={v.customerName}
-            onChange={(e) => set('customerName', e.target.value)}
+            onValueChange={(t) => setV((x) => ({ ...x, customerName: t, customerId: null }))}
+            onPick={(c) => setV((x) => ({ ...x, customerName: c.name, customerPhone: c.phone ?? x.customerPhone, customerId: c.id }))}
+            pickedId={v.customerId}
+            lookup={p.lookup}
             placeholder={he.customerNamePlaceholder}
-            autoComplete="off"
             enterKeyHint="done"
             maxLength={80}
             required
           />
-        </label>
-
-        <label className="field">
-          <span>{he.phone}</span>
-          <input
+          <CustomerField
+            label={he.phone}
             type="tel"
             inputMode="tel"
             dir="ltr"
             value={v.customerPhone}
-            onChange={(e) => set('customerPhone', e.target.value)}
+            onValueChange={(t) => set('customerPhone', t)}
+            onPick={(c) => setV((x) => ({ ...x, customerName: c.name, customerPhone: c.phone ?? t0(x), customerId: c.id }))}
+            pickedId={v.customerId}
+            lookup={p.lookup}
             placeholder="050-0000000"
-            autoComplete="off"
             maxLength={30}
           />
-        </label>
         </div>
 
         <fieldset className="field">
@@ -250,6 +262,11 @@ export function AppointmentForm(p: Props) {
           <button type="button" className="btn ghost" onClick={p.onCancel}>
             {he.cancel}
           </button>
+          {editing && p.onMove && (
+            <button type="button" className="btn move-btn" onClick={p.onMove}>
+              {he.moveAppointment}
+            </button>
+          )}
           {editing && p.onDelete && (
             <button type="button" className="btn danger" onClick={p.onDelete}>
               {he.delete}
@@ -260,3 +277,5 @@ export function AppointmentForm(p: Props) {
     </Modal>
   );
 }
+
+const t0 = (x: AppointmentInput) => x.customerPhone;

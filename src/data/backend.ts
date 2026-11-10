@@ -1,4 +1,4 @@
-import type { Appointment, AppointmentInput, Shop, SlotSplit, Staff } from '../domain/types';
+import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
 
 export type ChangeEvent =
   | { table: 'appointments'; type: 'upsert'; row: Appointment }
@@ -23,6 +23,10 @@ export interface Backend {
   deleteAppointment(id: string): Promise<void>;
   setSplit(shop: Shop, staffId: string, date: string, blockStart: number, isSplit: boolean): Promise<SlotSplit>;
   updateShopHours(shopId: string, dayStart: number, dayEnd: number): Promise<Shop>;
+  /** returning-customer autocomplete (name or phone fragment) */
+  searchCustomers(shopId: string, query: string): Promise<Customer[]>;
+  /** appointments across all dates; by date when `date` is given, else by name/phone */
+  searchAppointments(shopId: string, query: string, date: string | null): Promise<Appointment[]>;
   /** Live changes from any device. Returns an unsubscribe function. */
   subscribe(
     shopId: string,

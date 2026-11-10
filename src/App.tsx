@@ -10,12 +10,15 @@ import { Calendar } from './components/Calendar';
 import { AppointmentForm, type FormSeed } from './components/AppointmentForm';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { QuickBook } from './components/QuickBook';
+import { MoveDialog } from './components/MoveDialog';
+import { SearchDialog } from './components/SearchDialog';
+import { findOverlap } from './domain/schedule';
 import { DateBar } from './components/DateBar';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { SettingsDialog } from './components/SettingsDialog';
 import { Toast, type ToastMsg } from './components/Toast';
-import { fmtTime, nowMinutesLocal, todayLocal, utcToLocal } from './lib/time';
+import { fmtTime, formatHebrewDateShort, nowMinutesLocal, todayLocal, utcToLocal } from './lib/time';
 import { he } from './i18n/he';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -73,7 +76,43 @@ function SupabaseApp() {
   return <SalonApp key={session.user.id} backend={backend} onSignOut={() => backend.signOut()} />;
 }
 
-type FormState = { seed: FormSeed; editing: Appointment | null; mode: 'quick' | 'full'; initialName?: string };
+type FormState = {
+  seed: FormSeed;
+  editing: Appointment | null;
+  mode: 'quick' | 'full';
+  initialName?: string;
+  initialPhone?: string;
+  initialCustomerId?: string | null;
+};
+
+type PendingMove = { appt: Appointment; staffId: string; date: string; start: number };
+
+/** An existing appointment as form input (used for moves and undo). */
+function toInput(appt: Appointment, tz: string): AppointmentInput {
+  const s = utcToLocal(appt.startsAt, tz);
+  const e = utcToLocal(appt.endsAt, tz);
+  return {
+    staffId: appt.staffId,
+    date: s.date,
+    start: s.minutes,
+    duration: (e.date === s.date ? e.minutes : 1440) - s.minutes,
+    customerName: appt.customerName,
+    customerPhone: appt.customerPhone ?? '',
+    service: appt.service ?? '',
+    notes: appt.notes ?? '',
+    isBlocked: appt.isBlocked,
+    customerId: appt.customerId ?? null,
+  };
+}
+
+const VIEW_KEY = 'rotem-full-day';
+function readFullDay() {
+  try {
+    return localStorage.getItem(VIEW_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 const FILTER_KEY = 'rotem-staff-filter';
 function readFilter() {
@@ -99,6 +138,33 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [filter, setFilterState] = useState(readFilter);
   const [now, setNow] = useState(() => Date.now());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [moveAppt, setMoveAppt] = useState<Appointment | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [fullDay, setFullDayState] = useState(readFullDay);
+
+  const toggleFullDay = () =>
+    setFullDayState((v) => {
+      try {
+        localStorage.setItem(VIEW_KEY, v ? '0' : '1');
+      } catch {
+        /* ignore */
+      }
+      return !v;
+    });
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => setHighlightId(null), 2600);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+
+  const lookupCustomers = useCallback(
+    (q: string) => (shop ? backend.searchCustomers(shop.id, q) : Promise.resolve([])),
+    [backend, shop],
+  );
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
@@ -177,26 +243,48 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     setForm(null);
     try {
       await salon.deleteAppointment(appt.id);
-      const s = utcToLocal(appt.startsAt, tz);
-      const e = utcToLocal(appt.endsAt, tz);
       notify(he.deleted, 'ok', {
         label: he.undo,
         run: () =>
           void salon
-            .saveAppointment({
-              staffId: appt.staffId,
-              date: s.date,
-              start: s.minutes,
-              duration: e.minutes - s.minutes,
-              customerName: appt.customerName,
-              customerPhone: appt.customerPhone ?? '',
-              service: appt.service ?? '',
-              notes: appt.notes ?? '',
-            })
+            .saveAppointment(toInput(appt, tz))
             .catch((err) => notify(he.errors[toAppError(err).code], 'error')),
       });
     } catch (e) {
       notify(he.errors[toAppError(e).code], 'error');
+    }
+  };
+
+  /** drag-and-drop: check availability first, then ask for confirmation */
+  const onMoveDrop = useCallback(
+    (appt: Appointment, staffId: string, start: number) => {
+      const len = toInput(appt, tz).duration;
+      if (findOverlap(salon.dayAppts, staffId, start, start + len, appt.id)) {
+        notify(he.errors.OVERLAP, 'error');
+        return;
+      }
+      setPendingMove({ appt, staffId, date, start });
+    },
+    [salon.dayAppts, tz, date, notify],
+  );
+
+  const runMove = async (m: PendingMove) => {
+    setSaving(true);
+    setMoveError(null);
+    try {
+      await salon.saveAppointment({ ...toInput(m.appt, tz), staffId: m.staffId, date: m.date, start: m.start }, m.appt.id);
+      notify(he.moved);
+      setPendingMove(null);
+      setMoveAppt(null);
+      setForm(null);
+      setHighlightId(m.appt.id);
+    } catch (e) {
+      const msg = he.errors[toAppError(e).code];
+      if (moveAppt) setMoveError(msg);
+      else notify(msg, 'error');
+      setPendingMove(null);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -215,11 +303,24 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const empty = !salon.loading && salon.day.appointments.length === 0;
 
   return (
-    <div className="app">
-      <Header status={salon.status} demo={backend.mode === 'demo'} onSettings={() => setSettingsOpen(true)} />
-      <DateBar date={date} onDate={salon.setDate} staff={staff} filter={filter} onFilter={setFilter} />
-      <main className="cal-wrap" aria-busy={salon.loading}>
-        {empty && <p className="empty-note">{he.emptyDay}</p>}
+    <div className={`app ${fullDay ? 'full-day' : ''}`}>
+      <Header
+        status={salon.status}
+        demo={backend.mode === 'demo'}
+        onSettings={() => setSettingsOpen(true)}
+        onSearch={() => setSearchOpen(true)}
+      />
+      <DateBar
+        date={date}
+        onDate={salon.setDate}
+        staff={staff}
+        filter={filter}
+        onFilter={setFilter}
+        fullDay={fullDay}
+        onToggleFullDay={toggleFullDay}
+      />
+      <main className={`cal-wrap ${fullDay ? 'is-fit' : ''}`} aria-busy={salon.loading}>
+        {empty && !fullDay && <p className="empty-note">{he.emptyDay}</p>}
         {shop && visibleStaff.length > 0 ? (
           <Calendar
             staff={visibleStaff}
@@ -234,6 +335,9 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
             onAppointmentTap={onAppointmentTap}
             onSplit={onSplit}
             onMerge={onMerge}
+            onMoveDrop={onMoveDrop}
+            fit={fullDay}
+            highlightId={highlightId}
           />
         ) : (
           <p className="empty-note">{he.loading}</p>
@@ -247,13 +351,16 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
           duration={form.seed.duration}
           error={formError}
           saving={saving}
-          onSave={(name) => void onSave({ ...form.seed, customerName: name, customerPhone: '', service: '', notes: '' })}
+          lookup={lookupCustomers}
+          onSave={(c) =>
+            void onSave({ ...form.seed, customerName: c.name, customerPhone: c.phone, customerId: c.customerId, service: '', notes: '' })
+          }
           onBlock={() =>
             void onSave({ ...form.seed, customerName: he.blocked, customerPhone: '', service: '', notes: '', isBlocked: true })
           }
-          onMore={(name) => {
+          onMore={(c) => {
             setFormError(null);
-            setForm({ ...form, mode: 'full', initialName: name });
+            setForm({ ...form, mode: 'full', initialName: c.name, initialPhone: c.phone, initialCustomerId: c.customerId });
           }}
           onCancel={() => setForm(null)}
         />
@@ -262,6 +369,17 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
       {form && shop && form.mode === 'full' && (
         <AppointmentForm
           initialName={form.initialName}
+          initialPhone={form.initialPhone}
+          initialCustomerId={form.initialCustomerId}
+          lookup={lookupCustomers}
+          onMove={
+            form.editing
+              ? () => {
+                  setMoveError(null);
+                  setMoveAppt(form.editing);
+                }
+              : undefined
+          }
           staff={staff}
           dayStart={shop.dayStart}
           dayEnd={shop.dayEnd}
@@ -273,6 +391,53 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
           onSave={onSave}
           onCancel={() => setForm(null)}
           onDelete={form.editing ? () => setConfirmDelete(form.editing) : undefined}
+        />
+      )}
+
+      {moveAppt && shop && (
+        <MoveDialog
+          appt={moveAppt}
+          staff={staff}
+          tz={tz}
+          dayStart={shop.dayStart}
+          dayEnd={shop.dayEnd}
+          loadDay={(d) => backend.loadDay(shop.id, d)}
+          saving={saving}
+          error={moveError}
+          onConfirm={(t) => void runMove({ appt: moveAppt, ...t })}
+          onCancel={() => setMoveAppt(null)}
+        />
+      )}
+
+      {pendingMove && (
+        <ConfirmDialog
+          title={he.moveConfirmTitle}
+          message={he.moveQuestion(
+            pendingMove.appt.customerName,
+            staff.find((s) => s.id === pendingMove.staffId)?.name ?? '',
+            formatHebrewDateShort(pendingMove.date),
+            fmtTime(pendingMove.start),
+            fmtTime(pendingMove.start + toInput(pendingMove.appt, tz).duration),
+          )}
+          confirmLabel={he.moveConfirm}
+          tone="primary"
+          onConfirm={() => void runMove(pendingMove)}
+          onCancel={() => setPendingMove(null)}
+        />
+      )}
+
+      {searchOpen && shop && (
+        <SearchDialog
+          staff={staff}
+          tz={tz}
+          search={(q, d) => backend.searchAppointments(shop.id, q, d)}
+          onPick={(a) => {
+            setSearchOpen(false);
+            salon.setDate(utcToLocal(a.startsAt, tz).date);
+            if (filter !== 'all' && filter !== a.staffId) setFilter('all');
+            setHighlightId(a.id);
+          }}
+          onClose={() => setSearchOpen(false)}
         />
       )}
 

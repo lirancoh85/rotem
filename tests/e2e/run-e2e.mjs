@@ -65,10 +65,34 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
     assert.ok(fontSize >= 15, `name font ${fontSize}px`);
     assert.ok(a.height >= 36, `touch target height ${a.height}`);
   });
-  await check('next day is on the right, previous day on the left', async () => {
-    const next = await box(page, '[data-testid=next-day]');
-    const prev = await box(page, '[data-testid=prev-day]');
-    assert.ok(next.x > prev.x, `next ${next.x} prev ${prev.x}`);
+  await check('date bar right→left: תאריך → יום קודם → היום → יום הבא', async () => {
+    const [d, p, t, n] = await Promise.all(['nav-date', 'prev-day', 'today', 'next-day'].map((id) => box(page, `[data-testid=${id}]`)));
+    assert.ok(d.x > p.x && p.x > t.x && t.x > n.x, `date ${d.x} prev ${p.x} today ${t.x} next ${n.x}`);
+    const before = await page.getByTestId('date-label').innerText();
+    await page.getByTestId('next-day').click();
+    const after = await page.getByTestId('date-label').innerText();
+    assert.notEqual(before, after);
+    await page.getByTestId('prev-day').click();
+    assert.equal(await page.getByTestId('date-label').innerText(), before);
+  });
+  await check('full-day view fits opening→closing without vertical scrolling, then back to normal', async () => {
+    await page.getByTestId('view-toggle').click();
+    assert.equal(await page.getByTestId('view-toggle').innerText(), 'תצוגה רגילה');
+    await page.waitForTimeout(150);
+    const m = await page.evaluate(() => {
+      const w = document.querySelector('.cal-wrap');
+      const short = document.querySelector('[data-duration="15"] .appt-name');
+      return { wrapH: w.clientHeight, scrollH: w.scrollHeight, font: parseFloat(getComputedStyle(short).fontSize),
+        heads: [...document.querySelectorAll('[role=columnheader]')].map((h) => h.textContent),
+        quarters: document.querySelectorAll('[data-testid=appt][data-duration="15"]').length };
+    });
+    assert.ok(m.scrollH <= m.wrapH + 1, `scrolls: ${m.scrollH} > ${m.wrapH}`);
+    assert.ok(m.font >= 11, `name font ${m.font}px`);
+    assert.deepEqual(m.heads, ['שעה', 'רותם', 'סיון']);
+    assert.equal(m.quarters, 2);
+    await page.screenshot({ path: `${OUT}/${label}-full-day.png` });
+    await page.getByTestId('view-toggle').click();
+    assert.equal(await page.getByTestId('view-toggle').innerText(), 'הצג יום מלא');
   });
   await check('every visible text is Hebrew/RTL (document dir + lang)', async () => {
     const { dir, lang } = await page.evaluate(() => ({ dir: document.documentElement.dir, lang: document.documentElement.lang }));
@@ -98,6 +122,93 @@ console.log('two devices (two windows sharing the demo backend)');
     await tablet.keyboard.press('Enter');
     await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיון, 14:00–14:30/ }).waitFor({ timeout: 3000 });
   });
+  const dragTo = async (page, sel, targetStaff, targetTime, touch) => {
+    const card = page.locator(sel);
+    await card.scrollIntoViewIfNeeded();
+    const from = await card.boundingBox();
+    const head = await page.locator(`.cal-head-staff[data-staff-id="${targetStaff}"]`).boundingBox();
+    const row = await page.locator(`.cal-time[data-minute="${targetTime}"]`).boundingBox();
+    const x0 = from.x + from.width / 2, y0 = from.y + 8, x1 = head.x + head.width / 2, y1 = row.y + 8;
+    if (!touch) {
+      await page.mouse.move(x0, y0);
+      await page.mouse.down();
+      await page.mouse.move((x0 + x1) / 2, (y0 + y1) / 2, { steps: 4 });
+      await page.mouse.move(x1, y1, { steps: 4 });
+      await page.mouse.up();
+      return;
+    }
+    // touch: press, hold (long-press), then drag
+    const cdp = await page.context().newCDPSession(page);
+    const tp = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+    await tp('touchStart', x0, y0);
+    await page.waitForTimeout(500);
+    for (let i = 1; i <= 6; i++) await tp('touchMove', x0 + ((x1 - x0) * i) / 6, y0 + ((y1 - y0) * i) / 6);
+    await tp('touchEnd');
+  };
+
+  await check('drag-and-drop with the mouse (tablet): Rotem → Sivan after confirmation, synced to the phone', async () => {
+    await tablet.click(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="17:00"] .free-main`);
+    await tablet.fill('[role=combobox]', 'גרירה');
+    await tablet.keyboard.press('Enter');
+    await tablet.getByRole('button', { name: /גרירה אצל רותם, 17:00/ }).waitFor();
+    await dragTo(tablet, '[data-testid=appt]:has-text("גרירה")', SIVAN, 1110, false);
+    const dlg = tablet.getByRole('dialog', { name: 'אישור העברה' });
+    await dlg.waitFor({ timeout: 3000 });
+    assert.match(await dlg.innerText(), /להעביר את התור של גרירה אל סיון/);
+    await dlg.getByRole('button', { name: 'העבר' }).click();
+    await tablet.getByRole('button', { name: /גרירה אצל סיון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
+    await phone.getByRole('button', { name: /גרירה אצל סיון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
+  });
+
+  await check('drag-and-drop by touch (long-press, then drag): Rotem → Sivan', async () => {
+    const t = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true, timezoneId: 'Asia/Jerusalem' });
+    const p = await t.newPage();
+    await p.goto(URL);
+    await p.waitForSelector('[data-testid=appt]');
+    await dragTo(p, '[data-testid=appt]:has-text("שרון")', SIVAN, 660, true);
+    const dlg = p.getByRole('dialog', { name: 'אישור העברה' });
+    await dlg.waitFor({ timeout: 3000 });
+    await dlg.getByRole('button', { name: 'העבר' }).click();
+    await p.getByRole('button', { name: /שרון אצל סיון, 11:00–11:30/ }).waitFor({ timeout: 3000 });
+    await t.close();
+  });
+
+  await check('a quick touch swipe still scrolls the calendar instead of dragging', async () => {
+    const t = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, timezoneId: 'Asia/Jerusalem' });
+    const p = await t.newPage();
+    await p.goto(URL);
+    await p.waitForSelector('[data-testid=appt]');
+    const card = await p.locator('[data-testid=appt]').first().boundingBox();
+    const cdp = await t.newCDPSession(p);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: card.x + 20, y: card.y + 10 }] });
+    for (let i = 1; i <= 5; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: card.x + 20, y: card.y + 10 - i * 30 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await p.waitForTimeout(300);
+    assert.equal(await p.getByRole('dialog').count(), 0, 'no move dialog after a swipe');
+    await t.close();
+  });
+
+  await check('autocomplete suggests a returning customer and fills the phone', async () => {
+    await phone.click(`[data-testid=free][data-staff-id="${SIVAN}"][data-start="16:00"] .free-main`);
+    await phone.waitForFunction(() => document.activeElement?.getAttribute('role') === 'combobox');
+    await phone.keyboard.type('נוע');
+    await phone.getByRole('option', { name: /נועה/ }).click();
+    assert.match(await phone.getByTestId('picked-customer').innerText(), /054-7654321/);
+    await phone.getByRole('button', { name: 'שמור', exact: true }).click();
+    await tablet.getByRole('button', { name: /נועה אצל סיון, 16:00/ }).waitFor({ timeout: 3000 });
+  });
+
+  await check('search finds past appointments and jumps to them', async () => {
+    await tablet.getByTestId('search-btn').click();
+    await tablet.waitForFunction(() => document.activeElement?.getAttribute('type') === 'search');
+    await tablet.keyboard.type('דניאל');
+    const past = tablet.locator('[data-testid=search-results] .result', { hasText: 'עבר' });
+    await past.first().waitFor({ timeout: 3000 });
+    await past.first().click();
+    await tablet.locator('[data-testid=appt].is-highlight', { hasText: 'דניאל' }).waitFor({ timeout: 3000 });
+    await tablet.getByTestId('today').click();
+  });
+
   await check('crossing out a slot on the phone shows it crossed out on the tablet', async () => {
     await phone.click(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="16:00"] .free-main`);
     await phone.getByRole('button', { name: 'חסום משבצת' }).click();

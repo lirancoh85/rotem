@@ -196,8 +196,8 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
     it('simultaneous bookings for different staff at the same time both succeed', async () => {
       await tablet.query('begin');
       await phone.query('begin');
-      await book(tablet, ROTEM, D, '15:00', '15:30');
-      await book(phone, SIVAN, D, '15:00', '15:30'); // does not wait for the other device
+      await book(tablet, ROTEM, D, '15:00', '15:30', 'יוסי');
+      await book(phone, SIVAN, D, '15:00', '15:30', 'רוני'); // does not wait for the other device
       await tablet.query('commit');
       await phone.query('commit');
       const { rows } = await tablet.query('select count(*)::int as n from public.appointments');

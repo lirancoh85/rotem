@@ -173,3 +173,39 @@ export function buildColumn(opts: {
 export function durationOf(a: { startsAt: string; endsAt: string }) {
   return Math.round((Date.parse(a.endsAt) - Date.parse(a.startsAt)) / 60000);
 }
+
+/**
+ * Start times where an appointment of `duration` minutes fits for one staff member.
+ * Whole and half hours are always offered; :15/:45 only inside blocks that are already split
+ * (a move never splits a block on its own unless the user chooses such a time).
+ */
+export function freeStarts(opts: {
+  dayAppts: DayAppointment[];
+  splits: SlotSplit[];
+  staffId: string;
+  date: string;
+  duration: number;
+  dayStart: number;
+  dayEnd: number;
+  ignoreId?: string;
+}): number[] {
+  const out: number[] = [];
+  for (let m = opts.dayStart; m + opts.duration <= opts.dayEnd; m += QUARTER) {
+    if (m % BLOCK !== 0 && !isBlockSplit(opts.splits, opts.staffId, opts.date, blockOf(m))) continue;
+    if (findOverlap(opts.dayAppts, opts.staffId, m, m + opts.duration, opts.ignoreId)) continue;
+    out.push(m);
+  }
+  return out;
+}
+
+/** Snaps a dragged start time to the grid of the target staff member's column. */
+export function snapStart(
+  rawMinutes: number,
+  opts: { splits: SlotSplit[]; staffId: string; date: string; duration: number; min: number; max: number },
+): number {
+  const quarter = Math.round(rawMinutes / QUARTER) * QUARTER;
+  const half = Math.round(rawMinutes / BLOCK) * BLOCK;
+  const useQuarter = quarter % BLOCK !== 0 && isBlockSplit(opts.splits, opts.staffId, opts.date, blockOf(quarter));
+  const m = useQuarter ? quarter : half;
+  return Math.max(opts.min, Math.min(m, opts.max - opts.duration));
+}

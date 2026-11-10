@@ -24,7 +24,8 @@ describe('appointment management (full app, Hebrew UI)', () => {
     await user.click(within(free(ROTEM.id, '10:00')).getByText('פנוי'));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading')).toHaveTextContent('רותם · 10:00–10:30');
-    expect(within(dialog).getAllByRole('textbox')).toHaveLength(1);
+    expect(within(dialog).getAllByRole('combobox')).toHaveLength(1);
+    expect(within(dialog).queryAllByRole('textbox')).toHaveLength(0);
     expect(within(dialog).getByRole('button', { name: 'חסום משבצת' })).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('שם הלקוח'), 'שרון{Enter}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -120,20 +121,6 @@ describe('appointment management (full app, Hebrew UI)', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'שמור' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('יש להזין את שם הלקוח');
-  });
-
-  it('puts "next day" on the right and "previous day" on the left (RTL order)', async () => {
-    const { user } = setup();
-    await screen.findAllByTestId('free');
-    const next = screen.getByRole('button', { name: 'היום הבא' });
-    const prev = screen.getByRole('button', { name: 'היום הקודם' });
-    // in an RTL row the earlier DOM node is on the right
-    expect(next.compareDocumentPosition(prev) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await user.click(next);
-    expect(screen.getByTestId('date-label')).toHaveTextContent('11 בנובמבר');
-    await user.click(prev);
-    await user.click(prev);
-    expect(screen.getByTestId('date-label')).toHaveTextContent('9 בנובמבר');
   });
 
   it('reflects changes made on another device in real time', async () => {

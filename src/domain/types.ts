@@ -26,6 +26,7 @@ export interface Appointment {
   endsAt: string;
   /** crossed-out slot (no customer) */
   isBlocked?: boolean;
+  customerId?: string | null;
   updatedAt?: string;
 }
 
@@ -51,6 +52,16 @@ export interface AppointmentInput {
   service: string;
   notes: string;
   isBlocked?: boolean;
+  /** set when picked from autocomplete */
+  customerId?: string | null;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  visits?: number;
+  lastVisit?: string | null;
 }
 
 export const DURATIONS = [15, 30, 45, 60] as const;

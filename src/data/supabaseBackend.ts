@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError, toAppError } from './backend';
-import type { Appointment, AppointmentInput, Shop, SlotSplit, Staff } from '../domain/types';
+import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
 import { addDays, fmtTime, localToIso, parseTime } from '../lib/time';
 
 type Row = Record<string, unknown>;
@@ -17,6 +17,7 @@ export const rowToAppointment = (r: Row): Appointment => ({
   startsAt: new Date(r.starts_at as string).toISOString(),
   endsAt: new Date(r.ends_at as string).toISOString(),
   isBlocked: Boolean(r.is_blocked),
+  customerId: (r.customer_id as string | null | undefined) ?? null,
   updatedAt: (r.updated_at as string | undefined) ?? undefined,
 });
 
@@ -37,7 +38,7 @@ export const rowToShop = (r: Row): Shop => ({
 });
 
 const APPT_COLS =
-  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, updated_at';
+  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, customer_id, updated_at';
 
 function inputToRow(shop: Shop, input: AppointmentInput) {
   const nullIfEmpty = (s: string) => (s.trim() ? s.trim() : null);
@@ -51,6 +52,7 @@ function inputToRow(shop: Shop, input: AppointmentInput) {
     starts_at: localToIso(input.date, input.start, shop.timezone),
     ends_at: localToIso(input.date, input.start + input.duration, shop.timezone),
     is_blocked: Boolean(input.isBlocked),
+    customer_id: input.isBlocked ? null : (input.customerId ?? null),
   };
 }
 
@@ -159,6 +161,29 @@ export class SupabaseBackend implements Backend {
       .single();
     if (error) throw toAppError(error);
     return rowToShop(data);
+  }
+
+  async searchCustomers(shopId: string, query: string): Promise<Customer[]> {
+    const { data, error } = await this.sb.rpc('search_customers', { p_shop: shopId, p_query: query, p_limit: 8 });
+    if (error) throw toAppError(error);
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      phone: (r.phone as string | null) ?? null,
+      visits: Number(r.visits ?? 0),
+      lastVisit: (r.last_visit as string | null) ?? null,
+    }));
+  }
+
+  async searchAppointments(shopId: string, query: string, date: string | null): Promise<Appointment[]> {
+    const { data, error } = await this.sb.rpc('search_appointments', {
+      p_shop: shopId,
+      p_query: query,
+      p_date: date,
+      p_limit: 60,
+    });
+    if (error) throw toAppError(error);
+    return ((data ?? []) as Row[]).map(rowToAppointment);
   }
 
   subscribe(shopId: string, onChange: (e: ChangeEvent) => void, onStatus: (s: ConnectionStatus) => void) {
