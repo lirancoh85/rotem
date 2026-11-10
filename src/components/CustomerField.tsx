@@ -109,6 +109,9 @@ export const CustomerField = forwardRef<HTMLInputElement, Props>(function Custom
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(c)}
               >
+                <span className="ac-avatar" aria-hidden="true">
+                  {c.name.trim().charAt(0)}
+                </span>
                 <span className="ac-name">{c.name}</span>
                 <span className="ac-meta">
                   {c.phone && <bdi dir="ltr">{c.phone}</bdi>}

@@ -296,7 +296,7 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
         return (
           <div
             key={m}
-            className={`cal-time ${isBlock ? 'is-block' : 'is-quarter'} ${showQuarter ? 'is-split' : ''}`}
+            className={`cal-time ${isBlock ? 'is-block' : 'is-quarter'} ${m % 60 === 0 ? 'is-hour' : ''} ${showQuarter ? 'is-split' : ''}`}
             style={{ gridColumn: 1, gridRow: rowOf(m) }}
             role="rowheader"
             data-minute={m}
@@ -348,7 +348,9 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
             gridRow: rowOf(Math.floor(p.nowMinutes / QUARTER) * QUARTER),
             ['--now-offset' as string]: `${((p.nowMinutes % QUARTER) / QUARTER) * 100}%`,
           }}
-        />
+        >
+          <span className="cal-now-label">{fmtTime(p.nowMinutes)}</span>
+        </div>
       )}
     </div>
   );

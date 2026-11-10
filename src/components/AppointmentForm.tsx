@@ -256,7 +256,7 @@ export function AppointmentForm(p: Props) {
         </label>
 
         <div className="form-actions sticky-actions">
-          <button type="submit" className="btn primary" disabled={p.saving}>
+          <button type="submit" className={`btn primary ${p.saving ? 'is-saving' : ''}`} disabled={p.saving}>
             {p.saving ? he.saving : editing ? he.saveChanges : he.save}
           </button>
           <button type="button" className="btn ghost" onClick={p.onCancel}>

@@ -323,6 +323,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         {empty && !fullDay && <p className="empty-note">{he.emptyDay}</p>}
         {shop && visibleStaff.length > 0 ? (
           <Calendar
+            key={date}
             staff={visibleStaff}
             date={date}
             dayStart={shop.dayStart}

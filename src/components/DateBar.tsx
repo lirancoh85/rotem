@@ -40,7 +40,7 @@ export function DateBar(p: {
       <div className="datebar-nav" data-testid="date-nav">
         <button
           type="button"
-          className="date-label"
+          className={`date-label ${isToday ? 'is-today' : ''}`}
           onClick={openPicker}
           aria-label={`${he.pickDate}: ${formatHebrewDate(p.date)}`}
           data-testid="nav-date"

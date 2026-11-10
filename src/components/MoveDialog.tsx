@@ -137,7 +137,7 @@ export function MoveDialog(p: {
         <div className="form-actions sticky-actions">
           <button
             type="button"
-            className="btn primary"
+            className={`btn primary ${p.saving ? 'is-saving' : ''}`}
             disabled={chosen === null || p.saving}
             onClick={() => chosen !== null && p.onConfirm({ staffId, date, start: chosen })}
           >

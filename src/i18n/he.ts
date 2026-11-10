@@ -55,7 +55,7 @@ export const he = {
   moveTitle: 'העברת תור',
   moveConfirmTitle: 'אישור העברה',
   moveQuestion: (name: string, staff: string, date: string, from: string, to: string) =>
-    `להעביר את התור של ${name} אל ${staff}, ${date}, ${from}–${to}?`,
+    `להעביר את התור של ${name} אל ${staff}, ${date}, \u2066${from}–${to}\u2069?`,
   moveConfirm: 'העבר',
   moved: 'התור הועבר',
   moveChooseTime: 'בחירת שעה פנויה',

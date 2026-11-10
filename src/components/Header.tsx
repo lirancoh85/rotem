@@ -8,7 +8,7 @@ export function Header(p: { status: ConnectionStatus; demo: boolean; onSettings(
       <div className="brand">
         <img src={logo} alt={he.salonName} className="brand-logo" width={165} height={165} />
         <div className="brand-text">
-          <h1>{he.salonName}</h1>
+          <h1 className="brand-name">{he.salonName}</h1>
           <span className={`status status-${p.status}`} role="status">
             <span className="dot" aria-hidden="true" />
             {he.status[p.status]}

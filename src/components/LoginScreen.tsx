@@ -30,7 +30,7 @@ export function LoginScreen({ sb }: { sb: SupabaseClient }) {
           <span>{he.login.password}</span>
           <input type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
-        <button type="submit" className="btn primary" disabled={busy}>
+        <button type="submit" className={`btn primary ${busy ? 'is-saving' : ''}`} disabled={busy}>
           {busy ? he.login.submitting : he.login.submit}
         </button>
       </form>

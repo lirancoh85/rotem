@@ -72,7 +72,7 @@ export function QuickBook(p: {
           </p>
         )}
         <div className="quick-actions">
-          <button type="submit" className="btn primary" disabled={p.saving}>
+          <button type="submit" className={`btn primary ${p.saving ? 'is-saving' : ''}`} disabled={p.saving}>
             {p.saving ? he.saving : he.quickSave}
           </button>
           <button type="button" className="btn block-btn" onClick={p.onBlock} disabled={p.saving}>
