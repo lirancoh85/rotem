@@ -2,6 +2,15 @@ import type { ErrorCode } from '../data/backend';
 
 export const he = {
   salonName: 'רותם עדני',
+  brandSub: 'סלון שיער · יומן תורים',
+  menu: 'תפריט',
+  navDiary: 'יומן תורים',
+  summaryTitle: 'סיכום היום',
+  summaryAppointments: 'תורים היום',
+  summaryBlocked: 'חסומים',
+  summarySplit: 'מפוצלים ל־15 דק׳',
+  summaryOccupancy: (name: string) => `תפוסה · ${name}`,
+  apptCount: (n: number) => (n === 1 ? 'תור אחד' : `${n} תורים`),
   appTitle: 'רותם עדני — יומן תורים',
   timeHeader: 'שעה',
   free: 'פנוי',

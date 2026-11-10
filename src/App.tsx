@@ -14,6 +14,7 @@ import { MoveDialog } from './components/MoveDialog';
 import { SearchDialog } from './components/SearchDialog';
 import { findOverlap } from './domain/schedule';
 import { DateBar } from './components/DateBar';
+import { DaySummary } from './components/DaySummary';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -319,6 +320,15 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         fullDay={fullDay}
         onToggleFullDay={toggleFullDay}
       />
+      {shop && !fullDay && (
+        <DaySummary
+          staff={visibleStaff}
+          dayAppts={salon.dayAppts}
+          splits={salon.day.splits.filter((s) => visibleStaff.some((v) => v.id === s.staffId))}
+          dayStart={shop.dayStart}
+          dayEnd={shop.dayEnd}
+        />
+      )}
       <main className={`cal-wrap ${fullDay ? 'is-fit' : ''}`} aria-busy={salon.loading}>
         {empty && !fullDay && <p className="empty-note">{he.emptyDay}</p>}
         {shop && visibleStaff.length > 0 ? (

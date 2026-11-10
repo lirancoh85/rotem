@@ -52,7 +52,10 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
     const { sw, iw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth }));
     assert.ok(sw <= iw, `scrollWidth ${sw} > ${iw}`);
     const cal = await box(page, '[data-testid=calendar]');
-    assert.ok(cal.width >= viewport.width - 32, `calendar width ${cal.width}`);
+    const card = await page.evaluate(() => document.querySelector('.cal-wrap').clientWidth);
+    assert.ok(cal.width >= card - 24, `calendar ${cal.width} does not fill its card ${card}`);
+    const share = viewport.width >= 1100 ? 0.7 : 0.9; // side panel takes the rest on wide screens
+    assert.ok(cal.width >= viewport.width * share, `calendar width ${cal.width}`);
   });
   await check('split block shows two distinct 15-minute cells, names readable', async () => {
     const quarter = page.locator('[data-testid=appt][data-duration="15"]');

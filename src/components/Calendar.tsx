@@ -285,6 +285,8 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
           style={{ gridColumn: i + 2, gridRow: 1 }}
           data-col={`staff-${i}`}
           data-staff-id={s.id}
+          data-initial={s.name.trim().charAt(0)}
+          data-count={he.apptCount(p.dayAppts.filter((a) => a.staffId === s.id && !a.appt.isBlocked).length)}
         >
           {s.name}
         </div>
@@ -414,6 +416,8 @@ function CellView(
         data-staff-id={c.staffId}
         data-start={from}
         data-duration={fullLen}
+        data-initial={a.customerName.trim().charAt(0)}
+        data-dur={durationLabel(fullLen)}
       >
         <span className="appt-name">{a.customerName}</span>
         <span className="appt-meta">

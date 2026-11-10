@@ -81,7 +81,7 @@ export function SearchDialog(p: {
                 const past = s.date < today;
                 return (
                   <li key={a.id}>
-                    <button type="button" className="result" onClick={() => p.onPick(a)}>
+                    <button type="button" className="result" onClick={() => p.onPick(a)} data-initial={a.customerName.trim().charAt(0)}>
                       <span className="result-name">{a.customerName}</span>
                       <span className="result-when">
                         <span>{formatHebrewDateShort(s.date)}</span>
