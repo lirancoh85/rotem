@@ -5,6 +5,8 @@ export interface ToastMsg {
   text: string;
   tone?: 'ok' | 'error';
   action?: { label: string; run(): void };
+  /** optional second action (e.g. undo next to show) */
+  action2?: { label: string; run(): void };
 }
 
 export function Toast(p: { toast: ToastMsg | null; onDone(): void }) {
@@ -18,17 +20,18 @@ export function Toast(p: { toast: ToastMsg | null; onDone(): void }) {
       {p.toast && (
         <div className={`toast ${p.toast.tone ?? 'ok'}`} role={p.toast.tone === 'error' ? 'alert' : 'status'}>
           <span>{p.toast.text}</span>
-          {p.toast.action && (
+          {[p.toast.action, p.toast.action2].filter(Boolean).map((a) => (
             <button
+              key={a!.label}
               type="button"
               onClick={() => {
-                p.toast!.action!.run();
+                a!.run();
                 p.onDone();
               }}
             >
-              {p.toast.action.label}
+              {a!.label}
             </button>
-          )}
+          ))}
         </div>
       )}
     </div>

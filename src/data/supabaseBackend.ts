@@ -9,11 +9,16 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  OfferStatus,
   SeriesChange,
   SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
+  WaitlistInput,
+  WaitlistOffer,
+  WaitlistRequest,
+  WaitlistStatus,
 } from '../domain/types';
 import { addDays, fmtTime, localToIso, parseTime } from '../lib/time';
 
@@ -46,6 +51,34 @@ const rowToStats = (r: Row) => ({
   lastVisit: (r.last_visit as string | null) ?? null,
   nextVisit: (r.next_visit as string | null) ?? null,
   status: ((r.status as CustomerSummary['status'] | undefined) ?? 'new'),
+});
+
+export const rowToOffer = (r: Row): WaitlistOffer => ({
+  id: r.id as string,
+  requestId: r.request_id as string,
+  staffId: r.staff_member_id as string,
+  startsAt: new Date(r.starts_at as string).toISOString(),
+  endsAt: new Date(r.ends_at as string).toISOString(),
+  status: r.status as OfferStatus,
+  appointmentId: (r.appointment_id as string | null) ?? null,
+  createdAt: r.created_at as string,
+});
+
+export const rowToWaitlist = (r: Row): WaitlistRequest => ({
+  id: r.id as string,
+  customerId: (r.customer_id as string | null) ?? null,
+  customerName: r.customer_name as string,
+  customerPhone: (r.customer_phone as string | null) ?? null,
+  service: (r.service as string | null) ?? null,
+  duration: Number(r.duration_minutes ?? 30),
+  staffId: (r.staff_member_id as string | null) ?? null,
+  preferredDates: ((r.preferred_dates as string[]) ?? []).slice().sort(),
+  timeFrom: parseTime(r.time_from as string),
+  timeTo: (r.time_to as string).startsWith('23:59') ? 1440 : parseTime(r.time_to as string),
+  notes: (r.notes as string | null) ?? null,
+  status: r.status as WaitlistStatus,
+  createdAt: r.created_at as string,
+  offers: ((r.waitlist_offers as Row[] | undefined) ?? []).map(rowToOffer).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
 });
 
 export const rowToSplit = (r: Row): SlotSplit => ({
@@ -318,6 +351,70 @@ export class SupabaseBackend implements Backend {
     return rowToShop(data);
   }
 
+  async listWaitlist(shopId: string): Promise<WaitlistRequest[]> {
+    const { data, error } = await this.sb
+      .from('waitlist_requests')
+      .select('*, waitlist_offers(*)')
+      .eq('shop_id', shopId)
+      .eq('status', 'waiting')
+      .order('created_at');
+    if (error) throw toAppError(error);
+    return ((data ?? []) as Row[]).map(rowToWaitlist);
+  }
+
+  async saveWaitlistRequest(shop: Shop, w: WaitlistInput, id?: string) {
+    const row = {
+      shop_id: shop.id,
+      customer_name: w.customerName.trim(),
+      customer_phone: w.customerPhone.trim() || null,
+      customer_id: w.customerId,
+      service: w.service.trim() || null,
+      duration_minutes: w.duration,
+      staff_member_id: w.staffId,
+      preferred_dates: [...new Set(w.preferredDates)].sort(),
+      time_from: fmtTime(w.timeFrom),
+      time_to: w.timeTo >= 1440 ? '23:59' : fmtTime(w.timeTo),
+      notes: w.notes.trim() || null,
+    };
+    const { error } = id
+      ? await this.sb.from('waitlist_requests').update(row).eq('id', id)
+      : await this.sb.from('waitlist_requests').insert(row);
+    if (error) throw toAppError(error);
+  }
+
+  async setWaitlistStatus(id: string, status: WaitlistStatus) {
+    const { error } = await this.sb.from('waitlist_requests').update({ status }).eq('id', id);
+    if (error) throw toAppError(error);
+  }
+
+  async createOffer(shop: Shop, requestId: string, slot: { date: string; start: number; staffId: string; duration: number }) {
+    const { data, error } = await this.sb
+      .from('waitlist_offers')
+      .insert({
+        shop_id: shop.id,
+        request_id: requestId,
+        staff_member_id: slot.staffId,
+        starts_at: localToIso(slot.date, slot.start, shop.timezone),
+        ends_at: localToIso(slot.date, slot.start + slot.duration, shop.timezone),
+      })
+      .select('*')
+      .single();
+    if (error) throw toAppError(error);
+    return rowToOffer(data);
+  }
+
+  async setOfferStatus(offerId: string, status: Exclude<OfferStatus, 'accepted'>) {
+    const { error } = await this.sb.from('waitlist_offers').update({ status }).eq('id', offerId);
+    if (error) throw toAppError(error);
+  }
+
+  async acceptOffer(offerId: string) {
+    const { data, error } = await this.sb.rpc('accept_offer', { p_offer: offerId });
+    if (error) throw toAppError(error);
+    const r = data as { ok: boolean; appointment_id: string | null; reason: string | null };
+    return { ok: r.ok, appointmentId: r.appointment_id, reason: r.reason };
+  }
+
   async firstVisitIds(shopId: string, date: string): Promise<string[]> {
     const { data, error } = await this.sb.rpc('first_visit_ids', {
       p_shop: shopId,
@@ -341,6 +438,11 @@ export class SupabaseBackend implements Backend {
       channel.on('postgres_changes' as never, { event: 'UPDATE', schema: 'public', table, filter }, handler);
       // Supabase cannot filter DELETE events; RLS still limits them to this shop's rows.
       channel.on('postgres_changes' as never, { event: 'DELETE', schema: 'public', table }, handler);
+    }
+    for (const table of ['waitlist_requests', 'waitlist_offers'] as const) {
+      channel.on('postgres_changes' as never, { event: '*', schema: 'public', table, filter: `shop_id=eq.${shopId}` }, () =>
+        onChange({ table: 'waitlist', type: 'changed' }),
+      );
     }
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') onStatus('live');

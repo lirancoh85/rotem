@@ -6,11 +6,16 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  OfferStatus,
   SeriesChange,
   SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
+  WaitlistInput,
+  WaitlistOffer,
+  WaitlistRequest,
+  WaitlistStatus,
 } from '../domain/types';
 
 export type ChangeEvent =
@@ -18,7 +23,9 @@ export type ChangeEvent =
   | { table: 'appointments'; type: 'delete'; id: string }
   | { table: 'slot_splits'; type: 'upsert'; row: SlotSplit }
   | { table: 'slot_splits'; type: 'delete'; key: { staffId: string; date: string; blockStart: number } }
-  | { table: 'shops'; type: 'upsert'; row: Shop };
+  | { table: 'shops'; type: 'upsert'; row: Shop }
+  /** something on the waiting list changed (any device) */
+  | { table: 'waitlist'; type: 'changed' };
 
 export type ConnectionStatus = 'connecting' | 'live' | 'offline';
 
@@ -55,6 +62,14 @@ export interface Backend {
   /** apply staff/time/length/service/notes to this occurrence and all following */
   updateSeriesFuture(apptId: string, change: SeriesChange): Promise<number>;
   updateClosedWeekdays(shopId: string, days: number[]): Promise<Shop>;
+  /** active waiting-list requests (status 'waiting') with their offers */
+  listWaitlist(shopId: string): Promise<WaitlistRequest[]>;
+  saveWaitlistRequest(shop: Shop, input: WaitlistInput, id?: string): Promise<void>;
+  setWaitlistStatus(id: string, status: WaitlistStatus): Promise<void>;
+  createOffer(shop: Shop, requestId: string, slot: { date: string; start: number; staffId: string; duration: number }): Promise<WaitlistOffer>;
+  setOfferStatus(offerId: string, status: Exclude<OfferStatus, 'accepted'>): Promise<void>;
+  /** books the offered slot; { ok: false, reason: 'SLOT_TAKEN' } if someone else got it first */
+  acceptOffer(offerId: string): Promise<{ ok: boolean; appointmentId: string | null; reason: string | null }>;
   /** ids of appointments on `date` that are the customer's first visit */
   firstVisitIds(shopId: string, date: string): Promise<string[]>;
   /** Live changes from any device. Returns an unsubscribe function. */

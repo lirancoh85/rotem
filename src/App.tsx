@@ -4,7 +4,7 @@ import type { Backend } from './data/backend';
 import { toAppError } from './data/backend';
 import { DemoBackend } from './data/demoBackend';
 import { SupabaseBackend } from './data/supabaseBackend';
-import type { Appointment, AppointmentInput, CustomerProfile } from './domain/types';
+import type { Appointment, AppointmentInput, CustomerProfile, WaitlistInput } from './domain/types';
 import { useSalon } from './hooks/useSalon';
 import { Calendar } from './components/Calendar';
 import { AppointmentForm, type FormSeed } from './components/AppointmentForm';
@@ -16,6 +16,9 @@ import { CustomersPanel } from './components/CustomersPanel';
 import { CustomerProfileSheet } from './components/CustomerProfileSheet';
 import { SeriesPreview } from './components/SeriesPreview';
 import { ScopeDialog, type Scope } from './components/ScopeDialog';
+import { WaitlistPanel } from './components/WaitlistPanel';
+import { useWaitlist } from './hooks/useWaitlist';
+import { requestsForSlot } from './domain/waitlist';
 import type { RecurrenceRule } from './domain/recurrence';
 import { findOverlap } from './domain/schedule';
 import { DateBar } from './components/DateBar';
@@ -153,6 +156,8 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [profile, setProfile] = useState<{ id: string; ctx: Appointment | null } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [seriesDraft, setSeriesDraft] = useState<{ input: AppointmentInput; rule: RecurrenceRule } | null>(null);
+  const [waitlistOpen, setWaitlistOpen] = useState<{ startWith: Partial<WaitlistInput> | null } | null>(null);
+  const waitlist = useWaitlist(backend, shop, staff, refreshKey, salon.waitlistTick);
   const [scope, setScope] = useState<{ mode: 'edit' | 'cancel'; appt: Appointment; input?: AppointmentInput } | null>(null);
   // open profiles/panels refresh whenever the diary changes (on any device)
   useEffect(() => setRefreshKey((k) => k + 1), [salon.day.appointments]);
@@ -192,9 +197,12 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     }
   };
 
-  const notify = useCallback((text: string, tone: ToastMsg['tone'] = 'ok', action?: ToastMsg['action']) => {
-    setToast({ id: Date.now(), text, tone, action });
-  }, []);
+  const notify = useCallback(
+    (text: string, tone: ToastMsg['tone'] = 'ok', action?: ToastMsg['action'], action2?: ToastMsg['action2']) => {
+      setToast({ id: Date.now(), text, tone, action, action2 });
+    },
+    [],
+  );
   const clearToast = useCallback(() => setToast(null), []);
 
   const visibleStaff = useMemo(
@@ -304,11 +312,18 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     try {
       await salon.setAppointmentStatus(appt.id, 'cancelled');
       setRefreshKey((k) => k + 1);
-      notify(he.cancelled, 'ok', {
+      const s = utcToLocal(appt.startsAt, tz);
+      const e = utcToLocal(appt.endsAt, tz);
+      const waiting = requestsForSlot(waitlist.requests ?? [], { date: s.date, start: s.minutes, end: e.minutes, staffId: appt.staffId });
+      const undo = {
         label: he.undo,
         run: () =>
           void salon.setAppointmentStatus(appt.id, 'booked').catch((err) => notify(he.errors[toAppError(err).code], 'error')),
-      });
+      };
+      if (waiting.length) {
+        // a slot opened up and someone is waiting for it — point to the list, without interrupting
+        notify(`${he.cancelled} · ${he.slotFreedMatches(waiting.length)}`, 'ok', { label: he.show, run: () => setWaitlistOpen({ startWith: null }) }, undo);
+      } else notify(he.cancelled, 'ok', undo);
     } catch (e) {
       notify(he.errors[toAppError(e).code], 'error');
     }
@@ -398,6 +413,8 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         onSettings={() => setSettingsOpen(true)}
         onSearch={() => setSearchOpen(true)}
         onCustomers={() => setCustomersOpen(true)}
+        onWaitlist={() => setWaitlistOpen({ startWith: null })}
+        waitlistMatches={waitlist.matchCount}
       />
       <DateBar
         date={date}
@@ -574,6 +591,27 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         />
       )}
 
+      {waitlistOpen && shop && (
+        <WaitlistPanel
+          backend={backend}
+          shop={shop}
+          staff={staff}
+          requests={waitlist.requests}
+          matches={waitlist.matches}
+          lookup={lookupCustomers}
+          startWith={waitlistOpen.startWith}
+          notify={(t, tone) => notify(t, tone)}
+          onChanged={waitlist.reload}
+          onBooked={(apptId, d) => {
+            setWaitlistOpen(null);
+            salon.setDate(d);
+            if (apptId) setHighlightId(apptId);
+            setRefreshKey((k) => k + 1);
+          }}
+          onClose={() => setWaitlistOpen(null)}
+        />
+      )}
+
       {scope && <ScopeDialog mode={scope.mode} onChoose={(c) => void runScope(c)} onCancel={() => setScope(null)} />}
 
       {customersOpen && shop && (
@@ -610,6 +648,12 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
             setHighlightId(a.id);
           }}
           onSaved={() => notify(he.customerSaved)}
+          onAddToWaitlist={(pr) => {
+            setProfile(null);
+            setWaitlistOpen({
+              startWith: { customerName: pr.customer.name, customerPhone: pr.customer.phone ?? '', customerId: pr.customer.id },
+            });
+          }}
         />
       )}
 

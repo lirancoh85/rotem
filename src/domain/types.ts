@@ -141,3 +141,49 @@ export interface SeriesChange {
   service: string;
   notes: string;
 }
+
+export type WaitlistStatus = 'waiting' | 'booked' | 'removed';
+export type OfferStatus = 'sent' | 'accepted' | 'declined' | 'expired';
+
+export interface WaitlistOffer {
+  id: string;
+  requestId: string;
+  staffId: string;
+  startsAt: string;
+  endsAt: string;
+  status: OfferStatus;
+  appointmentId: string | null;
+  createdAt: string;
+}
+
+export interface WaitlistRequest {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string | null;
+  service: string | null;
+  duration: number;
+  /** null = any staff member */
+  staffId: string | null;
+  preferredDates: string[];
+  /** minutes since midnight */
+  timeFrom: number;
+  timeTo: number;
+  notes: string | null;
+  status: WaitlistStatus;
+  createdAt: string;
+  offers: WaitlistOffer[];
+}
+
+export interface WaitlistInput {
+  customerName: string;
+  customerPhone: string;
+  customerId: string | null;
+  service: string;
+  duration: number;
+  staffId: string | null;
+  preferredDates: string[];
+  timeFrom: number;
+  timeTo: number;
+  notes: string;
+}

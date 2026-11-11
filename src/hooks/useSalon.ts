@@ -28,6 +28,7 @@ export function useSalon(backend: Backend, initialDate?: string) {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [firstVisitIds, setFirstVisitIds] = useState<Set<string>>(() => new Set());
   const [changeTick, setChangeTick] = useState(0);
+  const [waitlistTick, setWaitlistTick] = useState(0);
 
   const dateRef = useRef(date);
   dateRef.current = date;
@@ -78,6 +79,10 @@ export function useSalon(backend: Backend, initialDate?: string) {
     const unsub = backend.subscribe(
       shop.id,
       (e) => {
+        if (e.table === 'waitlist') {
+          setWaitlistTick((t) => t + 1);
+          return;
+        }
         if (e.table === 'shops') {
           setShop(e.row);
           return;
@@ -204,6 +209,7 @@ export function useSalon(backend: Backend, initialDate?: string) {
   );
 
   return {
+    waitlistTick,
     firstVisitIds,
     shop,
     staff,

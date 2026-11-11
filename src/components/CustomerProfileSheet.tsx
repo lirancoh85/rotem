@@ -25,6 +25,7 @@ export function CustomerProfileSheet(p: {
   onSetNoShow(a: Appointment, noShow: boolean): void;
   onJump(a: Appointment): void;
   onSaved(): void;
+  onAddToWaitlist?(profile: CustomerProfile): void;
 }) {
   const [profile, setProfile] = useState<CustomerProfile | null | undefined>(undefined);
   const [editing, setEditing] = useState(false);
@@ -271,6 +272,11 @@ export function CustomerProfileSheet(p: {
                 <button type="button" className="btn" onClick={startEdit}>
                   {he.editCustomer}
                 </button>
+                {p.onAddToWaitlist && (
+                  <button type="button" className="btn" onClick={() => p.onAddToWaitlist!(profile)}>
+                    {he.waitlistAdd}
+                  </button>
+                )}
               </div>
             )}
 

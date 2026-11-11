@@ -12,11 +12,16 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  OfferStatus,
   SeriesChange,
   SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
+  WaitlistInput,
+  WaitlistOffer,
+  WaitlistRequest,
+  WaitlistStatus,
 } from '../domain/types';
 import { computeStats } from '../domain/profile';
 import {
@@ -45,6 +50,7 @@ export interface DemoData {
   splits: SlotSplit[];
   customers?: StoredCustomer[];
   series?: { id: string; requestKey: string; status: 'active' | 'cancelled' }[];
+  waitlist?: WaitlistRequest[];
 }
 
 export interface DemoStore {
@@ -515,6 +521,111 @@ export class DemoBackend implements Backend {
     });
     this.store.write(d);
     changed.forEach((row) => this.emit({ table: 'appointments', type: 'upsert', row }));
+  }
+
+  private saveWaitlist(d: DemoData) {
+    this.store.write(d);
+    this.emit({ table: 'waitlist', type: 'changed' });
+  }
+
+  async listWaitlist(): Promise<WaitlistRequest[]> {
+    await this.delay();
+    return (this.data().waitlist ?? []).filter((w) => w.status === 'waiting');
+  }
+
+  async saveWaitlistRequest(_shop: Shop, w: WaitlistInput, id?: string) {
+    await this.delay();
+    if (!w.customerName.trim()) throw new AppError('NAME_REQUIRED');
+    const d = this.data();
+    const list = d.waitlist ?? [];
+    const digits = normalizePhone(w.customerPhone);
+    const linked =
+      w.customerId ??
+      (d.customers ?? []).find((c) => (digits ? normalizePhone(c.phone) === digits : nameKey(c.name) === nameKey(w.customerName)))?.id ??
+      null;
+    const base = {
+      customerId: linked,
+      customerName: w.customerName.trim(),
+      customerPhone: w.customerPhone.trim() || null,
+      service: w.service.trim() || null,
+      duration: w.duration,
+      staffId: w.staffId,
+      preferredDates: [...new Set(w.preferredDates)].sort(),
+      timeFrom: w.timeFrom,
+      timeTo: w.timeTo,
+      notes: w.notes.trim() || null,
+    };
+    d.waitlist = id
+      ? list.map((r) => (r.id === id ? { ...r, ...base } : r))
+      : [...list, { id: newId(), ...base, status: 'waiting', createdAt: new Date().toISOString(), offers: [] }];
+    this.saveWaitlist(d);
+  }
+
+  async setWaitlistStatus(id: string, status: WaitlistStatus) {
+    await this.delay();
+    const d = this.data();
+    d.waitlist = (d.waitlist ?? []).map((r) => (r.id === id ? { ...r, status } : r));
+    this.saveWaitlist(d);
+  }
+
+  async createOffer(shop: Shop, requestId: string, slot: { date: string; start: number; staffId: string; duration: number }) {
+    await this.delay();
+    const d = this.data();
+    const offer: WaitlistOffer = {
+      id: newId(),
+      requestId,
+      staffId: slot.staffId,
+      startsAt: localToIso(slot.date, slot.start, shop.timezone),
+      endsAt: localToIso(slot.date, slot.start + slot.duration, shop.timezone),
+      status: 'sent',
+      appointmentId: null,
+      createdAt: new Date().toISOString(),
+    };
+    d.waitlist = (d.waitlist ?? []).map((r) => (r.id === requestId ? { ...r, offers: [...r.offers, offer] } : r));
+    this.saveWaitlist(d);
+    return offer;
+  }
+
+  async setOfferStatus(offerId: string, status: Exclude<OfferStatus, 'accepted'>) {
+    await this.delay();
+    const d = this.data();
+    d.waitlist = (d.waitlist ?? []).map((r) => ({ ...r, offers: r.offers.map((o) => (o.id === offerId ? { ...o, status } : o)) }));
+    this.saveWaitlist(d);
+  }
+
+  async acceptOffer(offerId: string) {
+    await this.delay();
+    const d = this.data();
+    const req = (d.waitlist ?? []).find((r) => r.offers.some((o) => o.id === offerId));
+    const offer = req?.offers.find((o) => o.id === offerId);
+    if (!req || !offer) throw new AppError('NOT_FOUND');
+    if (offer.status === 'accepted') return { ok: true, appointmentId: offer.appointmentId, reason: null };
+    if (offer.status !== 'sent') return { ok: false, appointmentId: null, reason: 'OFFER_CLOSED' };
+    const tz = d.shop.timezone;
+    const s = utcToLocal(offer.startsAt, tz);
+    const e = utcToLocal(offer.endsAt, tz);
+    const setOffers = (fn: (o: WaitlistOffer) => WaitlistOffer, reqStatus?: WaitlistStatus) => {
+      const fresh = this.data();
+      fresh.waitlist = (fresh.waitlist ?? []).map((r) => (r.id === req.id ? { ...r, status: reqStatus ?? r.status, offers: r.offers.map(fn) } : r));
+      this.saveWaitlist(fresh);
+    };
+    if (findOverlap(toDayAppointments(d.appointments, s.date, tz), offer.staffId, s.minutes, e.minutes)) {
+      setOffers((o) => (o.id === offerId ? { ...o, status: 'expired' } : o));
+      return { ok: false, appointmentId: null, reason: 'SLOT_TAKEN' };
+    }
+    const appt = this.writeAppointment(d.shop, {
+      staffId: offer.staffId,
+      date: s.date,
+      start: s.minutes,
+      duration: e.minutes - s.minutes,
+      customerName: req.customerName,
+      customerPhone: req.customerPhone ?? '',
+      customerId: req.customerId,
+      service: req.service ?? '',
+      notes: req.notes ?? '',
+    });
+    setOffers((o) => (o.id === offerId ? { ...o, status: 'accepted', appointmentId: appt.id } : o.status === 'sent' ? { ...o, status: 'expired' } : o), 'booked');
+    return { ok: true, appointmentId: appt.id, reason: null };
   }
 
   async firstVisitIds(_shopId: string, date: string): Promise<string[]> {
