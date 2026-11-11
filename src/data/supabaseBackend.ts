@@ -186,6 +186,16 @@ export class SupabaseBackend implements Backend {
     return ((data ?? []) as Row[]).map(rowToAppointment);
   }
 
+  async firstVisitIds(shopId: string, date: string): Promise<string[]> {
+    const { data, error } = await this.sb.rpc('first_visit_ids', {
+      p_shop: shopId,
+      p_from: localToIso(date, 0),
+      p_to: localToIso(addDays(date, 1), 0),
+    });
+    if (error) throw toAppError(error);
+    return ((data ?? []) as unknown[]).map((r) => (typeof r === 'string' ? r : String(Object.values(r as object)[0])));
+  }
+
   subscribe(shopId: string, onChange: (e: ChangeEvent) => void, onStatus: (s: ConnectionStatus) => void) {
     onStatus('connecting');
     const channel = this.sb.channel(`salon-${shopId}`);

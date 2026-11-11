@@ -63,6 +63,8 @@ export const he = {
   moveSameSlot: 'זו השעה הנוכחית של התור',
   dragHint: 'גררו תור כדי להעביר אותו',
   fullDay: 'הצג יום מלא',
+  dayOff: 'יום שבתון',
+  firstVisit: 'לקוח/ה חדש/ה — תור ראשון',
   normalView: 'תצוגה רגילה',
   quickSave: 'שמור',
   splitHint: 'חצי השעה תתחלק לשני תורים של 15 דקות',

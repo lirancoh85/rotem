@@ -27,6 +27,8 @@ export interface Backend {
   searchCustomers(shopId: string, query: string): Promise<Customer[]>;
   /** appointments across all dates; by date when `date` is given, else by name/phone */
   searchAppointments(shopId: string, query: string, date: string | null): Promise<Appointment[]>;
+  /** ids of appointments on `date` that are the customer's first visit */
+  firstVisitIds(shopId: string, date: string): Promise<string[]>;
   /** Live changes from any device. Returns an unsubscribe function. */
   subscribe(
     shopId: string,

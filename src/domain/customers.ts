@@ -131,3 +131,18 @@ export function filterAppointments(appts: Appointment[], query: string, date: st
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt))
     .slice(0, 60);
 }
+
+/**
+ * Appointments on `date` that are the customer's first visit — the earliest
+ * remaining (non-blocked) appointment of that customer. Mirror of `first_visit_ids`.
+ * Ties on start time keep the earlier-created one (array order).
+ */
+export function firstVisitIdsOn(appts: Appointment[], date: string, tz: string): string[] {
+  const firstByCustomer = new Map<string, Appointment>();
+  appts.forEach((a) => {
+    if (a.isBlocked || !a.customerId) return;
+    const cur = firstByCustomer.get(a.customerId);
+    if (!cur || a.startsAt < cur.startsAt) firstByCustomer.set(a.customerId, a);
+  });
+  return [...firstByCustomer.values()].filter((a) => utcToLocal(a.startsAt, tz).date === date).map((a) => a.id);
+}

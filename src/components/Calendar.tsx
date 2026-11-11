@@ -19,6 +19,8 @@ export interface CalendarProps {
   fit?: boolean;
   /** appointment to scroll to and flash (from search) */
   highlightId?: string | null;
+  /** appointments that are the customer's first visit (name shown in green) */
+  firstVisitIds?: Set<string>;
   onFreeTap(staffId: string, start: number, split: boolean): void;
   onAppointmentTap(appt: Appointment): void;
   onSplit(staffId: string, blockStart: number): void;
@@ -49,7 +51,7 @@ interface DragState {
 }
 
 /**
- * Three-column RTL day calendar: שעה | רותם | סיון (right to left).
+ * Three-column RTL day calendar: שעה | רותם | סיוון (right to left).
  * The DOM order is time, staff[0], staff[1]; with dir="rtl" the first grid column is on the right.
  */
 export const Calendar = memo(function Calendar(p: CalendarProps) {
@@ -398,17 +400,20 @@ function CellView(
   if (c.kind === 'appointment') {
     const a = c.appt;
     const fullLen = Math.round((Date.parse(a.endsAt) - Date.parse(a.startsAt)) / 60000);
+    const isFirst = !!props.firstVisitIds?.has(a.id);
     return (
       <button
         type="button"
         className={`cell appt staff-${colIndex} len-${Math.min(len, 60)} ${len <= 15 ? 'is-short' : ''} ${
           props.dragging ? 'is-drag-source' : ''
-        } ${props.highlighted ? 'is-highlight' : ''}`}
+        } ${props.highlighted ? 'is-highlight' : ''} ${isFirst ? 'is-first' : ''}`}
         style={{ gridColumn: col, gridRow: row }}
         onClick={() => props.onAppointmentTap(a)}
         onPointerDown={props.draggable ? (e) => props.onApptPointerDown(e, a, c.start, c.end) : undefined}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label={he.apptAria(a.customerName, staffName, from, to)}
+        aria-label={he.apptAria(a.customerName, staffName, from, to) + (isFirst ? ` ${he.firstVisit}` : '')}
+        title={isFirst ? he.firstVisit : undefined}
+        data-first-visit={isFirst ? 'true' : undefined}
         data-testid="appt"
         data-appt-id={a.id}
         data-staff-id={c.staffId}

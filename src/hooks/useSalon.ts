@@ -26,6 +26,8 @@ export function useSalon(backend: Backend, initialDate?: string) {
   const [loading, setLoading] = useState(true);
   const [fatal, setFatal] = useState<ErrorCode | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [firstVisitIds, setFirstVisitIds] = useState<Set<string>>(() => new Set());
+  const [changeTick, setChangeTick] = useState(0);
 
   const dateRef = useRef(date);
   dateRef.current = date;
@@ -81,6 +83,8 @@ export function useSalon(backend: Backend, initialDate?: string) {
           return;
         }
         setDay((d) => applyChange(d, e, dateRef.current, tzRef.current));
+        // a change on any date can change who is a first-time customer
+        if (e.table === 'appointments') setChangeTick((t) => t + 1);
       },
       (s) => {
         // after a reconnect, re-sync anything missed while offline
@@ -101,6 +105,24 @@ export function useSalon(backend: Backend, initialDate?: string) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [reload]);
+
+  // first-time customers on the shown day (re-checked after every appointment change)
+  useEffect(() => {
+    if (!shop) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      backend
+        .firstVisitIds(shop.id, date)
+        .then((ids) => alive && setFirstVisitIds(new Set(ids)))
+        .catch(() => {
+          /* keep the previous highlight on a transient error */
+        });
+    }, 120);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [backend, shop, date, day.appointments, changeTick]);
 
   const dayAppts = useMemo(() => toDayAppointments(day.appointments, date, tz), [day.appointments, date, tz]);
 
@@ -163,6 +185,7 @@ export function useSalon(backend: Backend, initialDate?: string) {
   );
 
   return {
+    firstVisitIds,
     shop,
     staff,
     date,

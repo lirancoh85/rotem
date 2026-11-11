@@ -29,7 +29,7 @@ create table if not exists public.shop_members (
 create index if not exists shop_members_user_idx on public.shop_members (user_id);
 
 -- ---------------------------------------------------------------------------
--- Staff members (רותם, סיון)
+-- Staff members (רותם, סיוון)
 -- ---------------------------------------------------------------------------
 create table if not exists public.staff_members (
   id            uuid primary key default gen_random_uuid(),

@@ -38,12 +38,12 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
   await page.goto(URL);
   await page.waitForSelector('[data-testid=appt]');
 
-  await check('RTL order on screen: שעה (right) → רותם → סיון (left)', async () => {
+  await check('RTL order on screen: שעה (right) → רותם → סיוון (left)', async () => {
     const t = await box(page, '[data-col=time]');
     const r = await box(page, '[data-col=staff-0]');
     const s = await box(page, '[data-col=staff-1]');
     assert.equal(await page.locator('[data-col=staff-0]').innerText(), 'רותם');
-    assert.equal(await page.locator('[data-col=staff-1]').innerText(), 'סיון');
+    assert.equal(await page.locator('[data-col=staff-1]').innerText(), 'סיוון');
     assert.ok(t.x > r.x && r.x > s.x, `x: time ${t.x}, rotem ${r.x}, sivan ${s.x}`);
     assert.ok(Math.abs(r.width - s.width) <= 1, `staff widths ${r.width} vs ${s.width}`);
     assert.ok(t.width < r.width / 1.5, 'time column is narrower');
@@ -75,6 +75,31 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
     await page.getByTestId('prev-day').click();
     assert.equal(await page.getByTestId('date-label').innerText(), before);
   });
+  await check('date buttons are larger with a visible border', async () => {
+    for (const id of ['prev-day', 'today', 'next-day']) {
+      const el = page.getByTestId(id);
+      const b = await el.boundingBox();
+      const border = await el.evaluate((e) => parseFloat(getComputedStyle(e).borderTopWidth));
+      assert.ok(b.height >= 44, `${id} height ${b.height}`);
+      assert.ok(border >= 1, `${id} border ${border}`);
+    }
+  });
+  await check('holiday label sits right after "יום הבא" (RTL) and updates with the date', async () => {
+    assert.equal(await page.getByTestId('holiday').count(), 0, 'no label on an ordinary day');
+    await page.locator('.visually-hidden-input').fill('2026-09-21'); // Yom Kippur
+    const label = page.getByTestId('holiday');
+    await label.waitFor({ timeout: 3000 });
+    assert.match(await label.innerText(), /יום כיפור[\s\S]*יום שבתון/);
+    const next = await box(page, '[data-testid=next-day]');
+    const h = await label.boundingBox();
+    if (viewport.width > 640) assert.ok(h.x + h.width <= next.x + 1, `label ${h.x}+${h.width} not after next ${next.x}`);
+    else assert.ok(h.y >= next.y + next.height - 1, 'label wraps below the buttons on phones');
+    await page.screenshot({ path: `${OUT}/${label === null ? '' : ''}${viewport.width}-holiday.png` });
+    await page.getByTestId('next-day').click(); // 22.9 — ordinary day
+    await page.waitForTimeout(100);
+    assert.equal(await page.getByTestId('holiday').count(), 0);
+    await page.getByTestId('today').click();
+  });
   await check('full-day view fits opening→closing without vertical scrolling, then back to normal', async () => {
     await page.getByTestId('view-toggle').click();
     assert.equal(await page.getByTestId('view-toggle').innerText(), 'תצוגה רגילה');
@@ -88,7 +113,7 @@ for (const [label, viewport] of [['tablet', { width: 1280, height: 800 }], ['pho
     });
     assert.ok(m.scrollH <= m.wrapH + 1, `scrolls: ${m.scrollH} > ${m.wrapH}`);
     assert.ok(m.font >= 11, `name font ${m.font}px`);
-    assert.deepEqual(m.heads, ['שעה', 'רותם', 'סיון']);
+    assert.deepEqual(m.heads, ['שעה', 'רותם', 'סיוון']);
     assert.equal(m.quarters, 2);
     await page.screenshot({ path: `${OUT}/${label}-full-day.png` });
     await page.getByTestId('view-toggle').click();
@@ -120,7 +145,7 @@ console.log('two devices (two windows sharing the demo backend)');
     await tablet.click(`[data-testid=free][data-staff-id="${SIVAN}"][data-start="14:00"] .free-main`);
     await tablet.fill('input[placeholder="לדוגמה: דניאל"]', 'בדיקת סנכרון');
     await tablet.keyboard.press('Enter');
-    await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיון, 14:00–14:30/ }).waitFor({ timeout: 3000 });
+    await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיוון, 14:00–14:30/ }).waitFor({ timeout: 3000 });
   });
   const dragTo = async (page, sel, targetStaff, targetTime, touch) => {
     const card = page.locator(sel);
@@ -154,10 +179,10 @@ console.log('two devices (two windows sharing the demo backend)');
     await dragTo(tablet, '[data-testid=appt]:has-text("גרירה")', SIVAN, 1110, false);
     const dlg = tablet.getByRole('dialog', { name: 'אישור העברה' });
     await dlg.waitFor({ timeout: 3000 });
-    assert.match(await dlg.innerText(), /להעביר את התור של גרירה אל סיון/);
+    assert.match(await dlg.innerText(), /להעביר את התור של גרירה אל סיוון/);
     await dlg.getByRole('button', { name: 'העבר' }).click();
-    await tablet.getByRole('button', { name: /גרירה אצל סיון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
-    await phone.getByRole('button', { name: /גרירה אצל סיון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
+    await tablet.getByRole('button', { name: /גרירה אצל סיוון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
+    await phone.getByRole('button', { name: /גרירה אצל סיוון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
   });
 
   await check('drag-and-drop by touch (long-press, then drag): Rotem → Sivan', async () => {
@@ -169,7 +194,7 @@ console.log('two devices (two windows sharing the demo backend)');
     const dlg = p.getByRole('dialog', { name: 'אישור העברה' });
     await dlg.waitFor({ timeout: 3000 });
     await dlg.getByRole('button', { name: 'העבר' }).click();
-    await p.getByRole('button', { name: /שרון אצל סיון, 11:00–11:30/ }).waitFor({ timeout: 3000 });
+    await p.getByRole('button', { name: /שרון אצל סיוון, 11:00–11:30/ }).waitFor({ timeout: 3000 });
     await t.close();
   });
 
@@ -195,7 +220,7 @@ console.log('two devices (two windows sharing the demo backend)');
     await phone.getByRole('option', { name: /נועה/ }).click();
     assert.match(await phone.getByTestId('picked-customer').innerText(), /054-7654321/);
     await phone.getByRole('button', { name: 'שמור', exact: true }).click();
-    await tablet.getByRole('button', { name: /נועה אצל סיון, 16:00/ }).waitFor({ timeout: 3000 });
+    await tablet.getByRole('button', { name: /נועה אצל סיוון, 16:00/ }).waitFor({ timeout: 3000 });
   });
 
   await check('search finds past appointments and jumps to them', async () => {

@@ -5,7 +5,7 @@
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError } from './backend';
 import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
-import { filterAppointments, linkCustomer, matchCustomers, type StoredCustomer } from '../domain/customers';
+import { filterAppointments, firstVisitIdsOn, linkCustomer, matchCustomers, type StoredCustomer } from '../domain/customers';
 import {
   blocksRequiringSplit,
   canMergeBlock,
@@ -37,7 +37,7 @@ export const DEMO_SHOP: Shop = {
 };
 export const DEMO_STAFF: Staff[] = [
   { id: '5a10a000-0000-4000-8000-0000000000a1', name: 'רותם', displayOrder: 1 },
-  { id: '5a10a000-0000-4000-8000-0000000000a2', name: 'סיון', displayOrder: 2 },
+  { id: '5a10a000-0000-4000-8000-0000000000a2', name: 'סיוון', displayOrder: 2 },
 ];
 
 export function memoryStore(initial: DemoData | null = null): DemoStore {
@@ -291,6 +291,12 @@ export class DemoBackend implements Backend {
     await this.delay();
     const d = this.data();
     return filterAppointments(d.appointments, query, date, d.shop.timezone);
+  }
+
+  async firstVisitIds(_shopId: string, date: string): Promise<string[]> {
+    await this.delay();
+    const d = this.data();
+    return firstVisitIdsOn(d.appointments, date, d.shop.timezone);
   }
 
   subscribe(_shopId: string, onChange: (e: ChangeEvent) => void, onStatus: (s: ConnectionStatus) => void) {

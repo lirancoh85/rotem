@@ -40,13 +40,13 @@ describe('appointment management (full app, Hebrew UI)', () => {
     await user.click(within(free(SIVAN.id, '09:00')).getByText('פנוי'));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'אפשרויות נוספות' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('radio', { name: 'סיון' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(dialog).getByRole('radio', { name: 'סיוון' })).toHaveAttribute('aria-checked', 'true');
     await user.click(within(dialog).getByRole('checkbox', { name: /פצל ל־15 דקות/ }));
     await user.click(within(dialog).getByRole('radio', { name: /רבע שני/ }));
     await user.type(within(dialog).getByLabelText('שם הלקוח'), 'יוסי');
     await user.click(within(dialog).getByRole('button', { name: 'שמור תור' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /יוסי אצל סיון, 09:15–09:30/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /יוסי אצל סיוון, 09:15–09:30/ })).toBeInTheDocument();
     expect(free(SIVAN.id, '09:00')).toHaveAttribute('data-len', '15');
     expect(free(ROTEM.id, '09:00')).toHaveAttribute('data-len', '30'); // Rotem not split
   });
@@ -84,10 +84,10 @@ describe('appointment management (full app, Hebrew UI)', () => {
     await user.click(await screen.findByRole('button', { name: /רוני אצל רותם/ }));
     let dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading')).toHaveTextContent('עריכת תור');
-    await user.click(within(dialog).getByRole('radio', { name: 'סיון' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'סיוון' }));
     await user.click(within(dialog).getByRole('radio', { name: 'שעה' }));
     await user.click(within(dialog).getByRole('button', { name: 'שמור שינויים' }));
-    const moved = await screen.findByRole('button', { name: /רוני אצל סיון, 10:00–11:00/ });
+    const moved = await screen.findByRole('button', { name: /רוני אצל סיוון, 10:00–11:00/ });
     await user.click(moved);
     dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'מחק תור' }));
@@ -102,7 +102,7 @@ describe('appointment management (full app, Hebrew UI)', () => {
     await screen.findAllByTestId('free');
     await user.click(within(free(SIVAN.id, '13:00')).getByText('פנוי'));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'חסום משבצת' }));
-    const blocked = await screen.findByRole('button', { name: /סיון, 13:00–13:30, משבצת חסומה/ });
+    const blocked = await screen.findByRole('button', { name: /סיוון, 13:00–13:30, משבצת חסומה/ });
     expect(blocked).toHaveTextContent('חסום');
     // another device cannot book over a crossed-out slot
     await expect(other.createAppointment(DEMO_SHOP, {

@@ -663,3 +663,44 @@ body.modal-open { overflow: hidden; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
   .cell.appt.is-highlight { outline: 3px solid var(--tint); }
 }
+
+/* ---------- date navigation buttons: slightly larger, clean outline ---------- */
+.datebar-nav { gap: 8px; }
+.datebar-nav .icon-btn,
+.datebar-nav .btn.today {
+  height: 44px; min-height: 44px; border-radius: 12px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  transition: background-color 0.15s, border-color 0.15s, transform 0.1s var(--ease);
+}
+.datebar-nav .icon-btn { min-width: 46px; width: 46px; color: var(--tint); }
+.datebar-nav .btn.today { padding: 0 20px; font-size: 1rem; font-weight: 600; color: var(--tint); }
+.datebar-nav .icon-btn:hover, .datebar-nav .btn.today:hover { background: var(--fill); border-color: var(--line-strong); }
+.datebar-nav .icon-btn:active, .datebar-nav .btn.today:active { transform: scale(0.96); background: var(--fill-2); }
+.datebar-nav .btn.today.is-today { color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, var(--line-strong)); }
+.date-label { margin-inline-end: 6px; }
+
+/* holiday / non-working day, right after "יום הבא" */
+.holiday-label {
+  display: inline-flex; align-items: center; gap: 8px; margin-inline-start: 4px; min-height: 32px; padding: 0 12px;
+  border-radius: 99px; background: var(--tint-soft); color: var(--ink); font-size: 0.92rem; font-weight: 600;
+  white-space: nowrap; animation: fade 0.18s ease-out;
+}
+.holiday-off {
+  font-size: 0.74rem; font-weight: 600; color: var(--red); padding: 1px 8px; border-radius: 99px;
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+/* first-time customer: name in green (first visit only) */
+.cell.appt.is-first .appt-name { color: #1f7a35; }
+:root[data-theme='dark'] .cell.appt.is-first .appt-name { color: var(--ok); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .cell.appt.is-first .appt-name { color: var(--ok); } }
+
+@media (max-width: 640px) {
+  .datebar-nav { gap: 6px; flex-wrap: wrap; }
+  .datebar-nav .icon-btn { min-width: 44px; width: 44px; height: 44px; }
+  .datebar-nav .btn.today { height: 44px; padding: 0 14px; }
+  .holiday-label { order: 10; flex-basis: 100%; justify-content: center; margin-inline-start: 0; white-space: normal; text-align: center; }
+}
+.app.full-day .datebar-nav .icon-btn, .app.full-day .datebar-nav .btn.today { height: 40px; min-height: 40px; }
+.app.full-day .datebar-nav .icon-btn { width: 42px; min-width: 42px; }

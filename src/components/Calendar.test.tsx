@@ -27,12 +27,12 @@ function setup(over: Partial<CalendarProps> = {}) {
 const gridCol = (el: Element) => (el as HTMLElement).style.gridColumn;
 
 describe('RTL calendar layout', () => {
-  it('is RTL with columns שעה, רותם, סיון in grid columns 1, 2, 3 (right to left)', () => {
+  it('is RTL with columns שעה, רותם, סיוון in grid columns 1, 2, 3 (right to left)', () => {
     setup();
     const cal = screen.getByTestId('calendar');
     expect(cal).toHaveAttribute('dir', 'rtl');
     const heads = screen.getAllByRole('columnheader');
-    expect(heads.map((h) => h.textContent)).toEqual(['שעה', 'רותם', 'סיון']);
+    expect(heads.map((h) => h.textContent)).toEqual(['שעה', 'רותם', 'סיוון']);
     expect(heads.map(gridCol)).toEqual(['1', '2', '3']);
     expect(cal.style.gridTemplateColumns).toBe('var(--time-col) repeat(2, minmax(0, 1fr))');
   });
@@ -73,27 +73,27 @@ describe('15 / 30-minute rendering', () => {
     // Rotem's 08:30 is unaffected by Sivan's split
     const rotem0830 = screen.getAllByTestId('free').find((e) => e.getAttribute('data-staff-id') === ROTEM.id && e.getAttribute('data-start') === '08:30');
     expect(rotem0830).toHaveAttribute('data-len', '30');
-    expect(within(sivanFree[1]).getByRole('button', { name: /החזרת 08:30 של סיון/ })).toBeInTheDocument();
+    expect(within(sivanFree[1]).getByRole('button', { name: /החזרת 08:30 של סיוון/ })).toBeInTheDocument();
   });
 });
 
 describe('interaction', () => {
   it('tapping a slot in a staff column selects that staff member', async () => {
     const p = setup({ dayAppts: [], splits: [] });
-    await userEvent.click(screen.getByRole('button', { name: /^סיון, 08:00–08:30/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^סיוון, 08:00–08:30/ }));
     expect(p.onFreeTap).toHaveBeenLastCalledWith(SIVAN.id, 480, false);
     await userEvent.click(screen.getByRole('button', { name: /^רותם, 08:30–09:00/ }));
     expect(p.onFreeTap).toHaveBeenLastCalledWith(ROTEM.id, 510, false);
   });
   it('split / merge buttons target only their staff member and block', async () => {
     const p = setup({ dayAppts: [], splits: [split(ROTEM, '09:30')] });
-    await userEvent.click(screen.getByRole('button', { name: 'פיצול 09:00 של סיון לשני תורים של 15 דקות' }));
+    await userEvent.click(screen.getByRole('button', { name: 'פיצול 09:00 של סיוון לשני תורים של 15 דקות' }));
     expect(p.onSplit).toHaveBeenCalledWith(SIVAN.id, 540);
     await userEvent.click(screen.getByRole('button', { name: 'החזרת 09:30 של רותם לתור של 30 דקות' }));
     expect(p.onMerge).toHaveBeenCalledWith(ROTEM.id, 570);
   });
   it('a single staff filter renders time + one column', () => {
     setup({ staff: [SIVAN] });
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['שעה', 'סיון']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['שעה', 'סיוון']);
   });
 });

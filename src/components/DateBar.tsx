@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import type { Staff } from '../domain/types';
 import { addDays, formatHebrewDate, todayLocal } from '../lib/time';
 import { he } from '../i18n/he';
+import { israelDayInfo } from '../lib/holidays';
 
 /** Drawn arrows (not ‹ › characters, which browsers mirror inside RTL text). */
 const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (
@@ -11,7 +12,7 @@ const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (
 );
 
 /**
- * Right to left: תאריך → יום קודם → היום → יום הבא.
+ * Right to left: תאריך → יום קודם → היום → יום הבא → holiday name (when there is one).
  * In Hebrew the timeline runs right→left, so "previous" points right (back) and "next" points left (forward).
  */
 export function DateBar(p: {
@@ -25,6 +26,7 @@ export function DateBar(p: {
 }) {
   const input = useRef<HTMLInputElement>(null);
   const isToday = p.date === todayLocal();
+  const holiday = israelDayInfo(p.date);
   const openPicker = () => {
     const el = input.current;
     if (!el) return;
@@ -84,6 +86,12 @@ export function DateBar(p: {
         >
           <Chevron dir="left" />
         </button>
+        {holiday && (
+          <span className={`holiday-label ${holiday.dayOff ? 'is-day-off' : ''}`} data-testid="holiday" role="note">
+            <span className="holiday-name">{holiday.names.join(' · ')}</span>
+            {holiday.dayOff && <span className="holiday-off">{he.dayOff}</span>}
+          </span>
+        )}
       </div>
       <div className="datebar-tools">
         <button

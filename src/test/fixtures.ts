@@ -3,7 +3,7 @@ import { localToIso } from '../lib/time';
 
 export const D = '2026-11-10';
 export const ROTEM: Staff = { id: 'rotem', name: 'רותם', displayOrder: 1 };
-export const SIVAN: Staff = { id: 'sivan', name: 'סיון', displayOrder: 2 };
+export const SIVAN: Staff = { id: 'sivan', name: 'סיוון', displayOrder: 2 };
 let n = 0;
 export function appt(staff: Staff, start: string, duration: number, name = 'לקוח', date = D): Appointment {
   const [h, m] = start.split(':').map(Number);

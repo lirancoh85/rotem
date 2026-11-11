@@ -53,7 +53,7 @@ describe('1. returning customer autocomplete', () => {
     expect(within(dialog).getByRole('combobox', { name: 'שם הלקוח' })).toHaveValue('נועה');
     expect(within(dialog).getByTestId('picked-customer')).toHaveTextContent('054-7654321');
     await user.click(within(dialog).getByRole('button', { name: 'שמור' }));
-    await screen.findByRole('button', { name: /נועה אצל סיון, 14:00/ });
+    await screen.findByRole('button', { name: /נועה אצל סיוון, 14:00/ });
     const results = await backend.searchCustomers(DEMO_SHOP.id, 'נועה');
     expect(results).toHaveLength(1); // no duplicate customer
     expect(results[0].visits).toBe(3);
@@ -98,15 +98,15 @@ describe('2. moving appointments', () => {
     await user.click(await screen.findByRole('button', { name: /שרון אצל רותם, 10:00/ }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'העבר תור' }));
     const dialog = await screen.findByRole('dialog', { name: 'העברת תור' });
-    await user.click(within(dialog).getByRole('radio', { name: 'סיון' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'סיוון' }));
     // Sivan is busy at 09:00 (משה) and 10:30 (רוני): those are not offered
     const times = await within(dialog).findByRole('radiogroup', { name: 'בחירת שעה פנויה' });
     expect(within(times).queryByRole('radio', { name: '09:00' })).toBeNull();
     expect(within(times).queryByRole('radio', { name: '10:30' })).toBeNull();
     await user.click(within(times).getByRole('radio', { name: '11:00' }));
-    expect(within(dialog).getByRole('group', { name: 'אישור העברה' })).toHaveTextContent('להעביר את התור של שרון אל סיון');
+    expect(within(dialog).getByRole('group', { name: 'אישור העברה' })).toHaveTextContent('להעביר את התור של שרון אל סיוון');
     await user.click(within(dialog).getByRole('button', { name: 'העבר' }));
-    await screen.findByRole('button', { name: /שרון אצל סיון, 11:00–11:30/ });
+    await screen.findByRole('button', { name: /שרון אצל סיוון, 11:00–11:30/ });
     await waitFor(() => expect(otherView.appointments.find((a) => a.customerName === 'שרון')?.staffId).toBe(SIVAN.id));
   });
 
@@ -140,12 +140,12 @@ describe('2. moving appointments', () => {
 
     fireEvent.pointerDown(card, { button: 0, pointerType: 'mouse', clientX: 450, clientY: yAt(600) });
     fireEvent.pointerMove(window, { pointerType: 'mouse', clientX: 150, clientY: yAt(660) });
-    expect(await screen.findByTestId('drop-target')).toHaveTextContent('סיון · 11:00–11:30');
+    expect(await screen.findByTestId('drop-target')).toHaveTextContent('סיוון · 11:00–11:30');
     fireEvent.pointerUp(window, { pointerType: 'mouse', clientX: 150, clientY: yAt(660) });
     const confirm = await screen.findByRole('dialog', { name: 'אישור העברה' });
-    expect(confirm).toHaveTextContent('להעביר את התור של שרון אל סיון');
+    expect(confirm).toHaveTextContent('להעביר את התור של שרון אל סיוון');
     fireEvent.click(within(confirm).getByRole('button', { name: 'העבר' }));
-    await screen.findByRole('button', { name: /שרון אצל סיון, 11:00–11:30/ });
+    await screen.findByRole('button', { name: /שרון אצל סיוון, 11:00–11:30/ });
   });
 
   it('a drop onto an occupied slot is refused before asking', async () => {
@@ -211,7 +211,7 @@ describe('3. search', () => {
     expect(within(dialog).getByText(/תורים בתאריך/)).toBeInTheDocument();
     list = await within(dialog).findByTestId('search-results');
     await waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(1));
-    expect(within(list).getByRole('button')).toHaveTextContent('סיון');
+    expect(within(list).getByRole('button')).toHaveTextContent('סיוון');
   });
 });
 
@@ -234,7 +234,7 @@ describe('4. full-day view', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     const cal = screen.getByTestId('calendar');
     expect(cal).toHaveClass('is-fit');
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['שעה', 'רותם', 'סיון']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['שעה', 'רותם', 'סיוון']);
     expect(screen.getAllByTestId('appt').filter((a) => a.getAttribute('data-duration') === '15')).toHaveLength(2);
     await user.click(toggle);
     expect(toggle).toHaveTextContent('הצג יום מלא');

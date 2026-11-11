@@ -339,6 +339,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
             onMoveDrop={onMoveDrop}
             fit={fullDay}
             highlightId={highlightId}
+            firstVisitIds={salon.firstVisitIds}
           />
         ) : (
           <p className="empty-note">{he.loading}</p>
