@@ -6,6 +6,8 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  SeriesChange,
+  SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
@@ -44,6 +46,15 @@ export interface Backend {
   listCustomers(shopId: string, query: string): Promise<CustomerSummary[]>;
   getCustomerProfile(customerId: string): Promise<CustomerProfile | null>;
   updateCustomer(customerId: string, update: CustomerUpdate): Promise<void>;
+  /** appointments (not cancelled) and splits for [fromDate, toDate) */
+  loadRange(shopId: string, fromDate: string, toDate: string): Promise<DayData>;
+  /** creates all occurrences atomically; returns the series id (same id for a repeated request) */
+  createSeries(shop: Shop, req: SeriesRequest): Promise<string>;
+  /** 'future' = this and following, 'all' = every occurrence not yet started */
+  cancelSeries(apptId: string, scope: 'future' | 'all'): Promise<number>;
+  /** apply staff/time/length/service/notes to this occurrence and all following */
+  updateSeriesFuture(apptId: string, change: SeriesChange): Promise<number>;
+  updateClosedWeekdays(shopId: string, days: number[]): Promise<Shop>;
   /** ids of appointments on `date` that are the customer's first visit */
   firstVisitIds(shopId: string, date: string): Promise<string[]>;
   /** Live changes from any device. Returns an unsubscribe function. */

@@ -9,6 +9,8 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  SeriesChange,
+  SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
@@ -60,10 +62,11 @@ export const rowToShop = (r: Row): Shop => ({
   timezone: (r.timezone as string) ?? 'Asia/Jerusalem',
   dayStart: parseTime(r.day_start as string),
   dayEnd: parseTime(r.day_end as string),
+  closedWeekdays: ((r.closed_weekdays as number[] | undefined) ?? [6]).map(Number),
 });
 
 const APPT_COLS =
-  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, customer_id, status, updated_at';
+  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, customer_id, status, series_id, series_index, updated_at';
 
 function inputToRow(shop: Shop, input: AppointmentInput) {
   const nullIfEmpty = (s: string) => (s.trim() ? s.trim() : null);
@@ -247,6 +250,72 @@ export class SupabaseBackend implements Backend {
       p_preferences: u.preferences,
     });
     if (error) throw toAppError(error);
+  }
+
+  async loadRange(shopId: string, fromDate: string, toDate: string): Promise<DayData> {
+    const [a, s] = await Promise.all([
+      this.sb
+        .from('appointments')
+        .select(APPT_COLS)
+        .eq('shop_id', shopId)
+        .neq('status', 'cancelled')
+        .gte('starts_at', localToIso(fromDate, 0))
+        .lt('starts_at', localToIso(toDate, 0))
+        .order('starts_at'),
+      this.sb.from('slot_splits').select('*').eq('shop_id', shopId).gte('date', fromDate).lt('date', toDate),
+    ]);
+    if (a.error) throw toAppError(a.error);
+    if (s.error) throw toAppError(s.error);
+    return { appointments: (a.data ?? []).map(rowToAppointment), splits: (s.data ?? []).map(rowToSplit) };
+  }
+
+  async createSeries(shop: Shop, req: SeriesRequest) {
+    const { data, error } = await this.sb.rpc('create_series', {
+      p_shop: shop.id,
+      p_request_key: req.requestKey,
+      p_staff: req.staffId,
+      p_customer_name: req.customerName,
+      p_customer_phone: req.customerPhone,
+      p_customer_id: req.customerId,
+      p_service: req.service,
+      p_notes: req.notes,
+      p_interval_weeks: req.intervalWeeks,
+      p_duration: req.duration,
+      p_ends_on: req.endsOn,
+      p_count: req.count,
+      p_occurrences: req.occurrences.map((o) => ({
+        index: o.index,
+        starts_at: localToIso(o.date, o.start, shop.timezone),
+        staff_id: o.staffId,
+      })),
+    });
+    if (error) throw toAppError(error);
+    return data as string;
+  }
+
+  async cancelSeries(apptId: string, scope: 'future' | 'all') {
+    const { data, error } = await this.sb.rpc('cancel_series', { p_appt: apptId, p_scope: scope });
+    if (error) throw toAppError(error);
+    return Number(data ?? 0);
+  }
+
+  async updateSeriesFuture(apptId: string, c: SeriesChange) {
+    const { data, error } = await this.sb.rpc('update_series_future', {
+      p_appt: apptId,
+      p_staff: c.staffId,
+      p_start_minutes: c.start,
+      p_duration: c.duration,
+      p_service: c.service,
+      p_notes: c.notes,
+    });
+    if (error) throw toAppError(error);
+    return Number(data ?? 0);
+  }
+
+  async updateClosedWeekdays(shopId: string, days: number[]) {
+    const { data, error } = await this.sb.from('shops').update({ closed_weekdays: days }).eq('id', shopId).select('*').single();
+    if (error) throw toAppError(error);
+    return rowToShop(data);
   }
 
   async firstVisitIds(shopId: string, date: string): Promise<string[]> {

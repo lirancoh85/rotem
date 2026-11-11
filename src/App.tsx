@@ -14,6 +14,9 @@ import { MoveDialog } from './components/MoveDialog';
 import { SearchDialog } from './components/SearchDialog';
 import { CustomersPanel } from './components/CustomersPanel';
 import { CustomerProfileSheet } from './components/CustomerProfileSheet';
+import { SeriesPreview } from './components/SeriesPreview';
+import { ScopeDialog, type Scope } from './components/ScopeDialog';
+import type { RecurrenceRule } from './domain/recurrence';
 import { findOverlap } from './domain/schedule';
 import { DateBar } from './components/DateBar';
 import { Header } from './components/Header';
@@ -149,6 +152,8 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [customersOpen, setCustomersOpen] = useState(false);
   const [profile, setProfile] = useState<{ id: string; ctx: Appointment | null } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [seriesDraft, setSeriesDraft] = useState<{ input: AppointmentInput; rule: RecurrenceRule } | null>(null);
+  const [scope, setScope] = useState<{ mode: 'edit' | 'cancel'; appt: Appointment; input?: AppointmentInput } | null>(null);
   // open profiles/panels refresh whenever the diary changes (on any device)
   useEffect(() => setRefreshKey((k) => k + 1), [salon.day.appointments]);
 
@@ -236,6 +241,14 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const onMerge = useCallback((s: string, b: number) => void runSplit(s, b, false), [runSplit]);
 
   const onSave = async (input: AppointmentInput) => {
+    if (form?.editing?.seriesId && !input.isBlocked) {
+      setScope({ mode: 'edit', appt: form.editing, input });
+      return;
+    }
+    await saveSingle(input);
+  };
+
+  const saveSingle = async (input: AppointmentInput) => {
     setSaving(true);
     setFormError(null);
     try {
@@ -246,6 +259,41 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
       setFormError(he.errors[toAppError(e).code]);
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** recurring: apply an edit or cancellation to this / following / all occurrences */
+  const runScope = async (choice: Scope) => {
+    if (!scope) return;
+    const { mode, appt, input } = scope;
+    setScope(null);
+    if (choice === 'this') {
+      if (mode === 'edit' && input) await saveSingle(input);
+      else setConfirmCancel(appt);
+      return;
+    }
+    try {
+      if (mode === 'edit' && input) {
+        const n = await backend.updateSeriesFuture(appt.id, {
+          staffId: input.staffId,
+          start: input.start,
+          duration: input.duration,
+          service: input.service,
+          notes: input.notes,
+        });
+        notify(he.seriesUpdated(n));
+      } else {
+        const n = await backend.cancelSeries(appt.id, choice);
+        notify(he.seriesCancelled(n));
+      }
+      setForm(null);
+      void salon.reload();
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      const err = toAppError(e);
+      const msg = err.code === 'SERIES_CONFLICT' ? he.seriesConflictAt(err.message) : he.errors[err.code];
+      if (form) setFormError(msg);
+      else notify(msg, 'error');
     }
   };
 
@@ -434,7 +482,12 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
           saving={saving}
           onSave={onSave}
           onCancel={() => setForm(null)}
-          onDelete={form.editing ? () => setConfirmCancel(form.editing) : undefined}
+          onDelete={
+            form.editing
+              ? () => (form.editing!.seriesId ? setScope({ mode: 'cancel', appt: form.editing! }) : setConfirmCancel(form.editing))
+              : undefined
+          }
+          onPreviewSeries={(input, rule) => setSeriesDraft({ input, rule })}
           onOpenProfile={
             form.editing?.customerId
               ? () => {
@@ -503,6 +556,26 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         />
       )}
 
+      {seriesDraft && shop && (
+        <SeriesPreview
+          backend={backend}
+          shop={shop}
+          staff={staff}
+          input={seriesDraft.input}
+          rule={seriesDraft.rule}
+          onBack={() => setSeriesDraft(null)}
+          onCreated={(n, first) => {
+            setSeriesDraft(null);
+            setForm(null);
+            notify(he.seriesCreated(n));
+            if (first !== date) salon.setDate(first);
+            else void salon.reload();
+          }}
+        />
+      )}
+
+      {scope && <ScopeDialog mode={scope.mode} onChoose={(c) => void runScope(c)} onCancel={() => setScope(null)} />}
+
       {customersOpen && shop && (
         <CustomersPanel
           backend={backend}
@@ -527,7 +600,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
             setProfile(null);
             onAppointmentTap(a);
           }}
-          onCancelAppointment={(a) => setConfirmCancel(a)}
+          onCancelAppointment={(a) => (a.seriesId ? setScope({ mode: 'cancel', appt: a }) : setConfirmCancel(a))}
           onSetNoShow={(a, ns) => void setNoShow(a, ns)}
           onJump={(a) => {
             setProfile(null);
@@ -563,6 +636,15 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         <SettingsDialog
           dayStart={shop.dayStart}
           dayEnd={shop.dayEnd}
+          closedWeekdays={shop.closedWeekdays}
+          onSaveClosedDays={async (days) => {
+            try {
+              await salon.updateClosedWeekdays(days);
+              notify(he.closedDaysSaved);
+            } catch (err) {
+              notify(he.errors[toAppError(err).code], 'error');
+            }
+          }}
           demo={backend.mode === 'demo'}
           onSaveHours={async (s, e) => {
             try {

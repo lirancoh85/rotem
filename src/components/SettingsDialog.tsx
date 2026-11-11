@@ -9,6 +9,8 @@ export function SettingsDialog(p: {
   dayStart: number;
   dayEnd: number;
   demo: boolean;
+  closedWeekdays?: number[];
+  onSaveClosedDays?(days: number[]): Promise<void>;
   onSaveHours(start: number, end: number): Promise<void>;
   onSignOut(): void;
   onClose(): void;
@@ -38,6 +40,28 @@ export function SettingsDialog(p: {
             </label>
           </div>
         </fieldset>
+        {p.closedWeekdays && p.onSaveClosedDays && (
+          <fieldset className="field">
+            <legend>{he.closedDays}</legend>
+            <div className="weekday-toggles" role="group" aria-label={he.closedDays}>
+              {he.weekdays.map((w, i) => {
+                const on = p.closedWeekdays!.includes(i);
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-pressed={on}
+                    className={`chip ${on ? 'on' : ''}`}
+                    onClick={() => void p.onSaveClosedDays!(on ? p.closedWeekdays!.filter((d) => d !== i) : [...p.closedWeekdays!, i])}
+                  >
+                    {w}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="muted small">{he.closedDaysHint}</span>
+          </fieldset>
+        )}
         {p.demo && <p className="muted">{he.demoNote}</p>}
         <div className="form-actions">
           <button

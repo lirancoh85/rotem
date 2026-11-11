@@ -11,6 +11,8 @@ export interface Shop {
   /** minutes since midnight */
   dayStart: number;
   dayEnd: number;
+  /** 0 = Sunday … 6 = Saturday */
+  closedWeekdays: number[];
 }
 
 export interface Appointment {
@@ -108,3 +110,34 @@ export interface Customer {
 export const DURATIONS = [15, 30, 45, 60] as const;
 export const QUARTER = 15;
 export const BLOCK = 30;
+
+export interface SeriesOccurrence {
+  index: number;
+  date: string;
+  start: number;
+  staffId: string;
+}
+
+export interface SeriesRequest {
+  /** idempotency key: the same request submitted twice creates one series */
+  requestKey: string;
+  staffId: string;
+  customerName: string;
+  customerPhone: string;
+  customerId: string | null;
+  service: string;
+  notes: string;
+  intervalWeeks: number;
+  duration: number;
+  endsOn: string | null;
+  count: number | null;
+  occurrences: SeriesOccurrence[];
+}
+
+export interface SeriesChange {
+  staffId: string;
+  start: number;
+  duration: number;
+  service: string;
+  notes: string;
+}

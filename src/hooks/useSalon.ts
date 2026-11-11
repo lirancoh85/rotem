@@ -187,6 +187,14 @@ export function useSalon(backend: Backend, initialDate?: string) {
     [backend, shop, guarded, tz],
   );
 
+  const updateClosedWeekdays = useCallback(
+    async (days: number[]) => {
+      if (!shop) return;
+      setShop(await backend.updateClosedWeekdays(shop.id, days));
+    },
+    [backend, shop],
+  );
+
   const updateHours = useCallback(
     async (dayStart: number, dayEnd: number) => {
       if (!shop) return;
@@ -212,6 +220,7 @@ export function useSalon(backend: Backend, initialDate?: string) {
     setAppointmentStatus,
     setSplit,
     updateHours,
+    updateClosedWeekdays,
   };
 }
 

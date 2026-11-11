@@ -6,6 +6,8 @@ import { fmtTime, durationLabel, utcToLocal } from '../lib/time';
 import { he } from '../i18n/he';
 import { Modal } from './Modal';
 import { CustomerField, type CustomerLookup } from './CustomerField';
+import { RecurrenceFields } from './RecurrenceFields';
+import type { RecurrenceRule } from '../domain/recurrence';
 
 export interface FormSeed {
   staffId: string;
@@ -26,6 +28,8 @@ interface Props {
   lookup?: CustomerLookup;
   onMove?(): void;
   onOpenProfile?(): void;
+  /** when set, a new appointment can repeat; saving opens the series preview */
+  onPreviewSeries?(input: AppointmentInput, rule: RecurrenceRule): void;
   /** extra content (recurrence options) rendered before the actions */
   extra?: ReactNode;
   /** custom save label (e.g. "preview series") */
@@ -69,6 +73,7 @@ export function AppointmentForm(p: Props) {
   const [v, setV] = useState<AppointmentInput>(initial);
   const set = <K extends keyof AppointmentInput>(k: K, val: AppointmentInput[K]) => setV((x) => ({ ...x, [k]: val }));
   const nameRef = useRef<HTMLInputElement>(null);
+  const [rule, setRule] = useState<RecurrenceRule | null>(null);
   const id = useId();
 
   useEffect(() => {
@@ -98,7 +103,10 @@ export function AppointmentForm(p: Props) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!p.saving) p.onSave({ ...v, customerName: v.customerName.trim() });
+    if (p.saving) return;
+    const input = { ...v, customerName: v.customerName.trim() };
+    if (rule && p.onPreviewSeries) p.onPreviewSeries(input, rule);
+    else p.onSave(input);
   };
 
   const title = editing ? he.editAppointment : he.newAppointment;
@@ -260,11 +268,12 @@ export function AppointmentForm(p: Props) {
           <textarea value={v.notes} onChange={(e) => set('notes', e.target.value)} rows={2} maxLength={500} />
         </label>
 
+        {!editing && p.onPreviewSeries && <RecurrenceFields date={v.date} rule={rule} onChange={setRule} />}
         {p.extra}
 
         <div className="form-actions sticky-actions">
           <button type="submit" className={`btn primary ${p.saving ? 'is-saving' : ''}`} disabled={p.saving}>
-            {p.saving ? he.saving : p.saveLabel ?? (editing ? he.saveChanges : he.save)}
+            {p.saving ? he.saving : rule ? he.previewSeries : p.saveLabel ?? (editing ? he.saveChanges : he.save)}
           </button>
           <button type="button" className="btn ghost" onClick={p.onCancel}>
             {he.cancel}

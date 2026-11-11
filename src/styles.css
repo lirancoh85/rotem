@@ -810,3 +810,31 @@ body.modal-open { overflow: hidden; }
   .header-actions { gap: 0; }
   .header-actions .icon-btn { min-width: 40px; }
 }
+
+/* ==========================================================================
+   Recurring appointments
+   ========================================================================== */
+.segmented.wrap { flex-wrap: wrap; }
+.segmented.wrap .seg { flex: 1 1 auto; min-width: 72px; }
+.recurrence { gap: 10px; }
+.recurrence-details { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: var(--fill); }
+.recurrence-details .segmented { background: var(--fill-2); }
+.recurrence-details input { background: var(--surface); }
+.series { display: grid; gap: 14px; }
+.occ-list { list-style: none; margin: 0; padding: 0; display: grid; border-radius: 12px; background: var(--fill); overflow: hidden; max-height: 48dvh; overflow-y: auto; }
+.occ { display: grid; gap: 8px; padding: 10px 14px; }
+.occ + .occ { border-top: 1px solid var(--line-strong); }
+.occ.has-problem { background: color-mix(in srgb, var(--danger) 5%, var(--fill)); }
+.occ-main { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.occ-date { font-weight: 600; min-width: 92px; }
+.occ-time { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.occ-status { margin-inline-start: auto; font-size: 0.78rem; font-weight: 600; padding: 2px 10px; border-radius: 99px; }
+.occ-status.ok { background: #e7f6ea; color: #1f7a35; }
+.occ-status.bad { background: var(--danger-bg); color: var(--danger); }
+.occ-fix select { width: 100%; min-height: 42px; border-radius: 10px; border: 0; background: var(--surface); padding: 0 12px; font-size: 0.95rem; }
+.series-summary { margin: 0; font-weight: 600; color: var(--ink-2); }
+.scope-options { display: grid; gap: 8px; }
+.scope-options .btn { justify-content: flex-start; min-height: 50px; }
+.small { font-size: 0.82rem; }
+.weekday-toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+.weekday-toggles .chip { min-width: 44px; min-height: 40px; }

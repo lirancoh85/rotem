@@ -12,6 +12,8 @@ import type {
   CustomerProfile,
   CustomerSummary,
   CustomerUpdate,
+  SeriesChange,
+  SeriesRequest,
   Shop,
   SlotSplit,
   Staff,
@@ -34,7 +36,7 @@ import {
   toDayAppointments,
   validateAppointment,
 } from '../domain/schedule';
-import { addDays, localToIso, todayLocal, utcToLocal } from '../lib/time';
+import { addDays, fmtTime, localToIso, todayLocal, utcToLocal } from '../lib/time';
 
 export interface DemoData {
   shop: Shop;
@@ -42,6 +44,7 @@ export interface DemoData {
   appointments: Appointment[];
   splits: SlotSplit[];
   customers?: StoredCustomer[];
+  series?: { id: string; requestKey: string; status: 'active' | 'cancelled' }[];
 }
 
 export interface DemoStore {
@@ -55,6 +58,7 @@ export const DEMO_SHOP: Shop = {
   timezone: 'Asia/Jerusalem',
   dayStart: 8 * 60,
   dayEnd: 20 * 60,
+  closedWeekdays: [6],
 };
 export const DEMO_STAFF: Staff[] = [
   { id: '5a10a000-0000-4000-8000-0000000000a1', name: 'רותם', displayOrder: 1 },
@@ -202,7 +206,10 @@ export class DemoBackend implements Backend {
   async loadShop() {
     await this.delay();
     const d = this.data();
-    return { shop: d.shop, staff: [...d.staff].sort((a, b) => a.displayOrder - b.displayOrder) };
+    return {
+      shop: { ...d.shop, closedWeekdays: d.shop.closedWeekdays ?? [6] },
+      staff: [...d.staff].sort((a, b) => a.displayOrder - b.displayOrder),
+    };
   }
 
   async loadDay(_shopId: string, date: string): Promise<DayData> {
@@ -214,7 +221,7 @@ export class DemoBackend implements Backend {
     };
   }
 
-  private writeAppointment(shop: Shop, input: AppointmentInput, id?: string): Appointment {
+  private writeAppointment(shop: Shop, input: AppointmentInput, id?: string, extra: Partial<Appointment> = {}): Appointment {
     const d = this.data();
     const dayAppts = toDayAppointments(d.appointments, input.date, shop.timezone);
     const err = validateAppointment(dayAppts, input, id);
@@ -242,6 +249,7 @@ export class DemoBackend implements Backend {
       status: existing?.status ?? 'booked',
       seriesId: existing?.seriesId ?? null,
       seriesIndex: existing?.seriesIndex ?? null,
+      ...extra,
       updatedAt: new Date().toISOString(),
     };
     d.appointments = [...d.appointments.filter((a) => a.id !== appt.id), appt];
@@ -294,6 +302,125 @@ export class DemoBackend implements Backend {
     this.store.write(d);
     this.emit({ table: 'slot_splits', type: 'upsert', row });
     return row;
+  }
+
+  async loadRange(_shopId: string, fromDate: string, toDate: string): Promise<DayData> {
+    await this.delay();
+    const d = this.data();
+    return {
+      appointments: d.appointments.filter((a) => {
+        if (a.status === 'cancelled') return false;
+        const day = utcToLocal(a.startsAt, d.shop.timezone).date;
+        return day >= fromDate && day < toDate;
+      }).sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      splits: d.splits.filter((s) => s.date >= fromDate && s.date < toDate),
+    };
+  }
+
+  async createSeries(shop: Shop, req: SeriesRequest) {
+    await this.delay();
+    const d = this.data();
+    const existing = (d.series ?? []).find((s) => s.requestKey === req.requestKey);
+    if (existing) return existing.id; // same request again: nothing new
+    if (!req.occurrences.length) throw new AppError('UNKNOWN', 'NO_OCCURRENCES');
+    // validate every occurrence first — all or nothing, never overwrite
+    const planned: Appointment[] = [];
+    for (const o of req.occurrences) {
+      const day = toDayAppointments([...d.appointments, ...planned], o.date, shop.timezone);
+      if (findOverlap(day, o.staffId, o.start, o.start + req.duration)) throw new AppError('SERIES_CONFLICT', `${o.date} ${fmtTime(o.start)}`);
+      planned.push({
+        id: `plan-${o.index}`,
+        shopId: shop.id,
+        staffId: o.staffId,
+        customerName: req.customerName,
+        customerPhone: null,
+        service: null,
+        notes: null,
+        startsAt: localToIso(o.date, o.start, shop.timezone),
+        endsAt: localToIso(o.date, o.start + req.duration, shop.timezone),
+      });
+    }
+    const id = newId();
+    d.series = [...(d.series ?? []), { id, requestKey: req.requestKey, status: 'active' }];
+    this.store.write(d);
+    let customerId = req.customerId;
+    for (const o of req.occurrences) {
+      const a = this.writeAppointment(
+        shop,
+        {
+          staffId: o.staffId,
+          date: o.date,
+          start: o.start,
+          duration: req.duration,
+          customerName: req.customerName,
+          customerPhone: req.customerPhone,
+          customerId,
+          service: req.service,
+          notes: req.notes,
+        },
+        undefined,
+        { seriesId: id, seriesIndex: o.index },
+      );
+      customerId = a.customerId ?? customerId;
+    }
+    return id;
+  }
+
+  async cancelSeries(apptId: string, scope: 'future' | 'all') {
+    await this.delay();
+    const d = this.data();
+    const a = d.appointments.find((x) => x.id === apptId);
+    if (!a?.seriesId) throw new AppError('NOT_FOUND');
+    const from = scope === 'future' ? a.startsAt : [a.startsAt, new Date().toISOString()].sort()[0];
+    const changed: Appointment[] = [];
+    d.appointments = d.appointments.map((x) => {
+      if (x.seriesId !== a.seriesId || (x.status ?? 'booked') !== 'booked' || x.startsAt < from) return x;
+      const row = { ...x, status: 'cancelled' as const, updatedAt: new Date().toISOString() };
+      changed.push(row);
+      return row;
+    });
+    if (scope === 'all') d.series = (d.series ?? []).map((s) => (s.id === a.seriesId ? { ...s, status: 'cancelled' as const } : s));
+    this.store.write(d);
+    changed.forEach((row) => this.emit({ table: 'appointments', type: 'upsert', row }));
+    return changed.length;
+  }
+
+  async updateSeriesFuture(apptId: string, c: SeriesChange) {
+    await this.delay();
+    const d = this.data();
+    const a = d.appointments.find((x) => x.id === apptId);
+    if (!a?.seriesId) throw new AppError('NOT_FOUND');
+    const tz = d.shop.timezone;
+    const targets = d.appointments
+      .filter((x) => x.seriesId === a.seriesId && (x.status ?? 'booked') === 'booked' && x.startsAt >= a.startsAt)
+      .sort((x, y) => x.startsAt.localeCompare(y.startsAt));
+    const ids = new Set(targets.map((x) => x.id));
+    const others = d.appointments.filter((x) => !ids.has(x.id));
+    const moved = targets.map((x) => {
+      const day = utcToLocal(x.startsAt, tz).date;
+      return { ...x, staffId: c.staffId, startsAt: localToIso(day, c.start, tz), endsAt: localToIso(day, c.start + c.duration, tz), _day: day };
+    });
+    for (const m of moved) {
+      const dayAppts = toDayAppointments([...others, ...moved.filter((x) => x.id !== m.id)], m._day, tz);
+      if (findOverlap(dayAppts, c.staffId, c.start, c.start + c.duration, m.id)) throw new AppError('SERIES_CONFLICT', `${m._day} ${fmtTime(c.start)}`);
+    }
+    for (const m of moved) {
+      this.writeAppointment(
+        d.shop,
+        { staffId: c.staffId, date: m._day, start: c.start, duration: c.duration, customerName: m.customerName, customerPhone: m.customerPhone ?? '', customerId: m.customerId, service: c.service, notes: c.notes },
+        m.id,
+      );
+    }
+    return moved.length;
+  }
+
+  async updateClosedWeekdays(_shopId: string, days: number[]) {
+    await this.delay();
+    const d = this.data();
+    d.shop = { ...d.shop, closedWeekdays: [...days].sort() };
+    this.store.write(d);
+    this.emit({ table: 'shops', type: 'upsert', row: d.shop });
+    return d.shop;
   }
 
   async updateShopHours(_shopId: string, dayStart: number, dayEnd: number) {
