@@ -27,7 +27,48 @@ export interface Appointment {
   /** crossed-out slot (no customer) */
   isBlocked?: boolean;
   customerId?: string | null;
+  /** booked (default) | cancelled (kept for history) | no_show */
+  status?: AppointmentStatus;
+  /** recurring series this appointment belongs to */
+  seriesId?: string | null;
+  seriesIndex?: number | null;
   updatedAt?: string;
+}
+
+export type AppointmentStatus = 'booked' | 'cancelled' | 'no_show';
+export type CustomerStatus = 'new' | 'returning' | 'inactive';
+
+export interface CustomerStats {
+  completedVisits: number;
+  upcomingCount: number;
+  cancelledCount: number;
+  noShowCount: number;
+  firstVisit: string | null;
+  lastVisit: string | null;
+  nextVisit: string | null;
+  status: CustomerStatus;
+}
+
+export interface CustomerSummary extends CustomerStats {
+  id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  preferences: string | null;
+}
+
+export interface CustomerProfile {
+  customer: { id: string; name: string; phone: string | null; notes: string | null; preferences: string | null };
+  stats: CustomerStats;
+  /** every appointment of the customer, chronological */
+  appointments: Appointment[];
+}
+
+export interface CustomerUpdate {
+  name: string;
+  phone: string;
+  notes: string;
+  preferences: string;
 }
 
 /** Split state of one 30-minute block of one staff member on one date. */

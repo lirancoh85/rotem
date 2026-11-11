@@ -1,7 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError, toAppError } from './backend';
-import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
+import type {
+  Appointment,
+  AppointmentInput,
+  AppointmentStatus,
+  Customer,
+  CustomerProfile,
+  CustomerSummary,
+  CustomerUpdate,
+  Shop,
+  SlotSplit,
+  Staff,
+} from '../domain/types';
 import { addDays, fmtTime, localToIso, parseTime } from '../lib/time';
 
 type Row = Record<string, unknown>;
@@ -18,7 +29,21 @@ export const rowToAppointment = (r: Row): Appointment => ({
   endsAt: new Date(r.ends_at as string).toISOString(),
   isBlocked: Boolean(r.is_blocked),
   customerId: (r.customer_id as string | null | undefined) ?? null,
+  status: ((r.status as AppointmentStatus | undefined) ?? 'booked'),
+  seriesId: (r.series_id as string | null | undefined) ?? null,
+  seriesIndex: (r.series_index as number | null | undefined) ?? null,
   updatedAt: (r.updated_at as string | undefined) ?? undefined,
+});
+
+const rowToStats = (r: Row) => ({
+  completedVisits: Number(r.completed_visits ?? 0),
+  upcomingCount: Number(r.upcoming_count ?? 0),
+  cancelledCount: Number(r.cancelled_count ?? 0),
+  noShowCount: Number(r.no_show_count ?? 0),
+  firstVisit: (r.first_visit as string | null) ?? null,
+  lastVisit: (r.last_visit as string | null) ?? null,
+  nextVisit: (r.next_visit as string | null) ?? null,
+  status: ((r.status as CustomerSummary['status'] | undefined) ?? 'new'),
 });
 
 export const rowToSplit = (r: Row): SlotSplit => ({
@@ -38,7 +63,7 @@ export const rowToShop = (r: Row): Shop => ({
 });
 
 const APPT_COLS =
-  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, customer_id, updated_at';
+  'id, shop_id, staff_member_id, customer_name, customer_phone, service, notes, starts_at, ends_at, is_blocked, customer_id, status, updated_at';
 
 function inputToRow(shop: Shop, input: AppointmentInput) {
   const nullIfEmpty = (s: string) => (s.trim() ? s.trim() : null);
@@ -109,7 +134,7 @@ export class SupabaseBackend implements Backend {
     const from = localToIso(date, 0);
     const to = localToIso(addDays(date, 1), 0);
     const [a, s] = await Promise.all([
-      this.sb.from('appointments').select(APPT_COLS).eq('shop_id', shopId).gte('starts_at', from).lt('starts_at', to),
+      this.sb.from('appointments').select(APPT_COLS).eq('shop_id', shopId).neq('status', 'cancelled').gte('starts_at', from).lt('starts_at', to),
       this.sb.from('slot_splits').select('*').eq('shop_id', shopId).eq('date', date),
     ]);
     if (a.error) throw toAppError(a.error);
@@ -184,6 +209,44 @@ export class SupabaseBackend implements Backend {
     });
     if (error) throw toAppError(error);
     return ((data ?? []) as Row[]).map(rowToAppointment);
+  }
+
+  async setAppointmentStatus(id: string, status: AppointmentStatus) {
+    const { data, error } = await this.sb.from('appointments').update({ status }).eq('id', id).select(APPT_COLS).single();
+    if (error) throw toAppError(error);
+    return rowToAppointment(data);
+  }
+
+  async listCustomers(shopId: string, query: string): Promise<CustomerSummary[]> {
+    const { data, error } = await this.sb.rpc('list_customers', { p_shop: shopId, p_query: query, p_limit: 100, p_offset: 0 });
+    if (error) throw toAppError(error);
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      phone: (r.phone as string | null) ?? null,
+      notes: (r.notes as string | null) ?? null,
+      preferences: (r.preferences as string | null) ?? null,
+      ...rowToStats(r),
+    }));
+  }
+
+  async getCustomerProfile(customerId: string): Promise<CustomerProfile | null> {
+    const { data, error } = await this.sb.rpc('customer_profile', { p_customer: customerId });
+    if (error) throw toAppError(error);
+    if (!data) return null;
+    const p = data as { customer: CustomerProfile['customer']; stats: Row; appointments: Row[] };
+    return { customer: p.customer, stats: rowToStats(p.stats), appointments: p.appointments.map(rowToAppointment) };
+  }
+
+  async updateCustomer(customerId: string, u: CustomerUpdate) {
+    const { error } = await this.sb.rpc('update_customer', {
+      p_customer: customerId,
+      p_name: u.name,
+      p_phone: u.phone,
+      p_notes: u.notes,
+      p_preferences: u.preferences,
+    });
+    if (error) throw toAppError(error);
   }
 
   async firstVisitIds(shopId: string, date: string): Promise<string[]> {

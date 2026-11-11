@@ -4,11 +4,32 @@
  */
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError } from './backend';
-import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
-import { filterAppointments, firstVisitIdsOn, linkCustomer, matchCustomers, type StoredCustomer } from '../domain/customers';
+import type {
+  Appointment,
+  AppointmentInput,
+  AppointmentStatus,
+  Customer,
+  CustomerProfile,
+  CustomerSummary,
+  CustomerUpdate,
+  Shop,
+  SlotSplit,
+  Staff,
+} from '../domain/types';
+import { computeStats } from '../domain/profile';
+import {
+  filterAppointments,
+  firstVisitIdsOn,
+  linkCustomer,
+  matchCustomers,
+  nameKey,
+  normalizePhone,
+  type StoredCustomer,
+} from '../domain/customers';
 import {
   blocksRequiringSplit,
   canMergeBlock,
+  findOverlap,
   canSplitBlock,
   toDayAppointments,
   validateAppointment,
@@ -188,7 +209,7 @@ export class DemoBackend implements Backend {
     await this.delay();
     const d = this.data();
     return {
-      appointments: d.appointments.filter((a) => utcToLocal(a.startsAt, d.shop.timezone).date === date),
+      appointments: d.appointments.filter((a) => a.status !== 'cancelled' && utcToLocal(a.startsAt, d.shop.timezone).date === date),
       splits: d.splits.filter((s) => s.date === date),
     };
   }
@@ -218,6 +239,9 @@ export class DemoBackend implements Backend {
       endsAt: localToIso(input.date, input.start + input.duration, shop.timezone),
       isBlocked: Boolean(input.isBlocked),
       customerId,
+      status: existing?.status ?? 'booked',
+      seriesId: existing?.seriesId ?? null,
+      seriesIndex: existing?.seriesIndex ?? null,
       updatedAt: new Date().toISOString(),
     };
     d.appointments = [...d.appointments.filter((a) => a.id !== appt.id), appt];
@@ -291,6 +315,79 @@ export class DemoBackend implements Backend {
     await this.delay();
     const d = this.data();
     return filterAppointments(d.appointments, query, date, d.shop.timezone);
+  }
+
+  async setAppointmentStatus(id: string, status: AppointmentStatus) {
+    await this.delay();
+    const d = this.data();
+    const a = d.appointments.find((x) => x.id === id);
+    if (!a) throw new AppError('NOT_FOUND');
+    if (status !== 'cancelled' && a.status === 'cancelled') {
+      // restoring must not overwrite whatever took the slot meanwhile
+      const s = utcToLocal(a.startsAt, d.shop.timezone);
+      const e = utcToLocal(a.endsAt, d.shop.timezone);
+      const day = toDayAppointments(d.appointments, s.date, d.shop.timezone);
+      if (findOverlap(day, a.staffId, s.minutes, e.minutes, a.id)) throw new AppError('OVERLAP');
+    }
+    const row: Appointment = { ...a, status, updatedAt: new Date().toISOString() };
+    d.appointments = d.appointments.map((x) => (x.id === id ? row : x));
+    this.store.write(d);
+    this.emit({ table: 'appointments', type: 'upsert', row });
+    return row;
+  }
+
+  async listCustomers(_shopId: string, query: string): Promise<CustomerSummary[]> {
+    await this.delay();
+    const d = this.data();
+    const k = nameKey(query);
+    const digits = normalizePhone(query);
+    return (d.customers ?? [])
+      .filter((c) => !k || nameKey(c.name).includes(k) || (!!digits && digits.length >= 3 && (normalizePhone(c.phone) ?? '').includes(digits)))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        notes: c.notes ?? null,
+        preferences: c.preferences ?? null,
+        ...computeStats(d.appointments.filter((a) => a.customerId === c.id)),
+      }))
+      .sort((a, b) => (b.nextVisit ?? b.lastVisit ?? '').localeCompare(a.nextVisit ?? a.lastVisit ?? '') || a.name.localeCompare(b.name));
+  }
+
+  async getCustomerProfile(customerId: string): Promise<CustomerProfile | null> {
+    await this.delay();
+    const d = this.data();
+    const c = (d.customers ?? []).find((x) => x.id === customerId);
+    if (!c) return null;
+    const appts = d.appointments.filter((a) => a.customerId === c.id && !a.isBlocked).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    return {
+      customer: { id: c.id, name: c.name, phone: c.phone, notes: c.notes ?? null, preferences: c.preferences ?? null },
+      stats: computeStats(appts),
+      appointments: appts,
+    };
+  }
+
+  async updateCustomer(customerId: string, u: CustomerUpdate) {
+    await this.delay();
+    const d = this.data();
+    const name = u.name.trim();
+    if (!name) throw new AppError('NAME_REQUIRED');
+    const phone = u.phone.trim() || null;
+    const digits = normalizePhone(phone);
+    const customers = d.customers ?? [];
+    if (digits && customers.some((c) => c.id !== customerId && normalizePhone(c.phone) === digits)) throw new AppError('DUPLICATE_PHONE');
+    const c = customers.find((x) => x.id === customerId);
+    if (!c) throw new AppError('NOT_FOUND');
+    Object.assign(c, { name, phone, notes: u.notes.trim() || null, preferences: u.preferences.trim() || null, updatedAt: new Date().toISOString() });
+    const changed: Appointment[] = [];
+    d.appointments = d.appointments.map((a) => {
+      if (a.customerId !== customerId || (a.customerName === name && a.customerPhone === phone)) return a;
+      const row = { ...a, customerName: name, customerPhone: phone, updatedAt: new Date().toISOString() };
+      changed.push(row);
+      return row;
+    });
+    this.store.write(d);
+    changed.forEach((row) => this.emit({ table: 'appointments', type: 'upsert', row }));
   }
 
   async firstVisitIds(_shopId: string, date: string): Promise<string[]> {

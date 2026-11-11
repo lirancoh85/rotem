@@ -15,6 +15,8 @@ export function nameKey(p: string | null | undefined): string {
 
 export interface StoredCustomer extends Customer {
   updatedAt: string;
+  notes?: string | null;
+  preferences?: string | null;
 }
 
 /**
@@ -121,7 +123,7 @@ export function filterAppointments(appts: Appointment[], query: string, date: st
   const k = nameKey(query);
   const d = normalizePhone(query);
   return appts
-    .filter((a) => !a.isBlocked)
+    .filter((a) => !a.isBlocked && a.status !== 'cancelled')
     .filter((a) =>
       date
         ? utcToLocal(a.startsAt, tz).date === date
@@ -140,7 +142,7 @@ export function filterAppointments(appts: Appointment[], query: string, date: st
 export function firstVisitIdsOn(appts: Appointment[], date: string, tz: string): string[] {
   const firstByCustomer = new Map<string, Appointment>();
   appts.forEach((a) => {
-    if (a.isBlocked || !a.customerId) return;
+    if (a.isBlocked || !a.customerId || (a.status ?? 'booked') !== 'booked') return;
     const cur = firstByCustomer.get(a.customerId);
     if (!cur || a.startsAt < cur.startsAt) firstByCustomer.set(a.customerId, a);
   });

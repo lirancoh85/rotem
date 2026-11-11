@@ -1,4 +1,15 @@
-import type { Appointment, AppointmentInput, Customer, Shop, SlotSplit, Staff } from '../domain/types';
+import type {
+  Appointment,
+  AppointmentInput,
+  AppointmentStatus,
+  Customer,
+  CustomerProfile,
+  CustomerSummary,
+  CustomerUpdate,
+  Shop,
+  SlotSplit,
+  Staff,
+} from '../domain/types';
 
 export type ChangeEvent =
   | { table: 'appointments'; type: 'upsert'; row: Appointment }
@@ -27,6 +38,12 @@ export interface Backend {
   searchCustomers(shopId: string, query: string): Promise<Customer[]>;
   /** appointments across all dates; by date when `date` is given, else by name/phone */
   searchAppointments(shopId: string, query: string, date: string | null): Promise<Appointment[]>;
+  /** cancel (kept in history), mark a no-show, or restore to booked */
+  setAppointmentStatus(id: string, status: AppointmentStatus): Promise<Appointment>;
+  /** customers with visit statistics, filtered by name/phone fragment */
+  listCustomers(shopId: string, query: string): Promise<CustomerSummary[]>;
+  getCustomerProfile(customerId: string): Promise<CustomerProfile | null>;
+  updateCustomer(customerId: string, update: CustomerUpdate): Promise<void>;
   /** ids of appointments on `date` that are the customer's first visit */
   firstVisitIds(shopId: string, date: string): Promise<string[]>;
   /** Live changes from any device. Returns an unsubscribe function. */
@@ -51,6 +68,10 @@ export type ErrorCode =
   | 'NETWORK'
   | 'NOT_FOUND'
   | 'NO_SHOP'
+  | 'DUPLICATE_PHONE'
+  | 'OFFLINE'
+  | 'SERIES_CONFLICT'
+  | 'SLOT_TAKEN'
   | 'UNKNOWN';
 
 export class AppError extends Error {
@@ -67,7 +88,11 @@ export function toAppError(e: unknown): AppError {
   for (const code of ['BLOCK_OCCUPIED', 'BLOCK_HAS_SPLIT_APPOINTMENTS', 'DAY_BOUNDARY'] as const) {
     if (msg.includes(code)) return new AppError(code);
   }
+  if (msg.includes('SERIES_CONFLICT')) return new AppError('SERIES_CONFLICT', err.details ?? msg);
+  if (msg.includes('SLOT_TAKEN')) return new AppError('SLOT_TAKEN');
+  if (msg.includes('NAME_REQUIRED')) return new AppError('NAME_REQUIRED');
   if (err.code === '23P01' || msg.includes('appointments_no_overlap_per_staff')) return new AppError('OVERLAP');
+  if (err.code === '23505' && msg.includes('customers_shop_phone_key')) return new AppError('DUPLICATE_PHONE');
   if (err.code === '23514') return new AppError('OFF_GRID', msg);
   if (err.code === '42501' || err.code === 'PGRST301') return new AppError('FORBIDDEN', msg);
   if (err.code === 'PGRST116') return new AppError('NOT_FOUND', msg);

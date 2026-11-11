@@ -27,6 +27,8 @@ export interface CalendarProps {
   onMerge(staffId: string, blockStart: number): void;
   /** drag-and-drop finished on a new staff/time (the caller confirms and saves) */
   onMoveDrop?(appt: Appointment, staffId: string, start: number): void;
+  /** the customer's name was tapped: open their profile */
+  onCustomerTap?(appt: Appointment): void;
 }
 
 /** Smallest row height (px per 15 minutes) at which names stay legible in the full-day view. */
@@ -248,6 +250,14 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
     },
     [p.onAppointmentTap], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const onCustomerTap = useCallback(
+    (a: Appointment) => {
+      if (suppressClick.current) return;
+      if (p.onCustomerTap) p.onCustomerTap(a);
+      else p.onAppointmentTap(a);
+    },
+    [p.onCustomerTap, p.onAppointmentTap], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // which quarter labels deserve emphasis (split somewhere in that block)
   const splitBlocks = new Set(
@@ -324,6 +334,7 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
             onApptPointerDown={onApptPointerDown}
             {...p}
             onAppointmentTap={onAppointmentTap}
+            onCustomerTap={onCustomerTap}
           />
         )),
       )}
@@ -401,17 +412,29 @@ function CellView(
     const a = c.appt;
     const fullLen = Math.round((Date.parse(a.endsAt) - Date.parse(a.startsAt)) / 60000);
     const isFirst = !!props.firstVisitIds?.has(a.id);
+    const noShow = a.status === 'no_show';
     return (
       <button
         type="button"
         className={`cell appt staff-${colIndex} len-${Math.min(len, 60)} ${len <= 15 ? 'is-short' : ''} ${
           props.dragging ? 'is-drag-source' : ''
-        } ${props.highlighted ? 'is-highlight' : ''} ${isFirst ? 'is-first' : ''}`}
+        } ${props.highlighted ? 'is-highlight' : ''} ${isFirst ? 'is-first' : ''} ${noShow ? 'is-no-show' : ''}`}
         style={{ gridColumn: col, gridRow: row }}
-        onClick={() => props.onAppointmentTap(a)}
+        onClick={(e) => {
+          // tapping the customer's name opens their profile; the rest of the card edits the appointment
+          if (a.customerId && (e.target as Element).closest?.('.appt-name')) props.onCustomerTap?.(a);
+          else props.onAppointmentTap(a);
+        }}
         onPointerDown={props.draggable ? (e) => props.onApptPointerDown(e, a, c.start, c.end) : undefined}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label={he.apptAria(a.customerName, staffName, from, to) + (isFirst ? ` ${he.firstVisit}` : '')}
+        aria-label={
+          he.apptAria(a.customerName, staffName, from, to) +
+          (isFirst ? ` ${he.firstVisit}` : '') +
+          (noShow ? ` · ${he.noShowBadge}` : '') +
+          (a.seriesId ? ` · ${he.recurring}` : '')
+        }
+        data-series={a.seriesId ? 'true' : undefined}
+        data-no-show={noShow ? 'true' : undefined}
         title={isFirst ? he.firstVisit : undefined}
         data-first-visit={isFirst ? 'true' : undefined}
         data-testid="appt"
@@ -420,7 +443,9 @@ function CellView(
         data-start={from}
         data-duration={fullLen}
       >
-        <span className="appt-name">{a.customerName}</span>
+        <span className="appt-name" title={a.customerId ? he.openProfile : undefined}>
+          {a.customerName}
+        </span>
         <span className="appt-meta">
           <span className="appt-dur">({durationLabel(fullLen)})</span>
           {len > 15 && (

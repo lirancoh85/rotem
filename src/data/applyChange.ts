@@ -13,7 +13,7 @@ export function applyChange(state: DayData, e: ChangeEvent, date: string, tz: st
         return without.length === state.appointments.length ? state : { ...state, appointments: without };
       }
       // an edit may move an appointment to another day: then it simply leaves this view
-      const onThisDay = utcToLocal(e.row.startsAt, tz).date === date;
+      const onThisDay = utcToLocal(e.row.startsAt, tz).date === date && e.row.status !== 'cancelled';
       const existing = state.appointments.find((a) => a.id === e.row.id);
       if (existing && existing.updatedAt && e.row.updatedAt && existing.updatedAt > e.row.updatedAt) {
         return state; // stale echo, keep the newer version

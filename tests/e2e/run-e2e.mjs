@@ -248,10 +248,10 @@ console.log('two devices (two windows sharing the demo backend)');
     await tablet.getByRole('button', { name: 'החזרת 15:00 של רותם לתור של 30 דקות' }).click();
     await phone.locator(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="15:00"][data-len="30"]`).waitFor({ timeout: 3000 });
   });
-  await check('deleting on the phone removes it from the tablet', async () => {
+  await check('cancelling on the phone removes it from the tablet', async () => {
     await phone.getByRole('button', { name: /בדיקת סנכרון/ }).click();
-    await phone.getByRole('button', { name: 'מחק תור' }).click();
-    await phone.getByRole('button', { name: 'מחק', exact: true }).click();
+    await phone.getByRole('button', { name: 'בטל תור' }).click();
+    await phone.getByRole('dialog', { name: 'ביטול תור' }).getByRole('button', { name: 'בטל תור' }).click();
     await tablet.getByRole('button', { name: /בדיקת סנכרון/ }).waitFor({ state: 'detached', timeout: 3000 });
   });
   await tablet.screenshot({ path: `${OUT}/tablet-after-sync.png` });

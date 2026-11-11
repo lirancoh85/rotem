@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { Appointment, AppointmentInput, Staff } from '../domain/types';
 import { DURATIONS, QUARTER } from '../domain/types';
 import { blockOf } from '../domain/schedule';
@@ -25,6 +25,11 @@ interface Props {
   initialCustomerId?: string | null;
   lookup?: CustomerLookup;
   onMove?(): void;
+  onOpenProfile?(): void;
+  /** extra content (recurrence options) rendered before the actions */
+  extra?: ReactNode;
+  /** custom save label (e.g. "preview series") */
+  saveLabel?: string;
   editing?: Appointment | null;
   error: string | null;
   saving: boolean;
@@ -255,13 +260,20 @@ export function AppointmentForm(p: Props) {
           <textarea value={v.notes} onChange={(e) => set('notes', e.target.value)} rows={2} maxLength={500} />
         </label>
 
+        {p.extra}
+
         <div className="form-actions sticky-actions">
           <button type="submit" className={`btn primary ${p.saving ? 'is-saving' : ''}`} disabled={p.saving}>
-            {p.saving ? he.saving : editing ? he.saveChanges : he.save}
+            {p.saving ? he.saving : p.saveLabel ?? (editing ? he.saveChanges : he.save)}
           </button>
           <button type="button" className="btn ghost" onClick={p.onCancel}>
             {he.cancel}
           </button>
+          {editing && p.onOpenProfile && (
+            <button type="button" className="btn ghost" onClick={p.onOpenProfile}>
+              {he.customerProfile}
+            </button>
+          )}
           {editing && p.onMove && (
             <button type="button" className="btn move-btn" onClick={p.onMove}>
               {he.moveAppointment}

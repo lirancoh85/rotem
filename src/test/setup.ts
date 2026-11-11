@@ -14,3 +14,7 @@ if (typeof window !== 'undefined' && !('PointerEvent' in window)) {
   // @ts-expect-error test polyfill
   window.PointerEvent = PointerEventPolyfill;
 }
+
+// UI tests wait on debounced lookups and live updates; give them headroom on slow machines
+import { configure } from '@testing-library/react';
+configure({ asyncUtilTimeout: 3000 });

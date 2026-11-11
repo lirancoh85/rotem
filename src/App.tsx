@@ -4,7 +4,7 @@ import type { Backend } from './data/backend';
 import { toAppError } from './data/backend';
 import { DemoBackend } from './data/demoBackend';
 import { SupabaseBackend } from './data/supabaseBackend';
-import type { Appointment, AppointmentInput } from './domain/types';
+import type { Appointment, AppointmentInput, CustomerProfile } from './domain/types';
 import { useSalon } from './hooks/useSalon';
 import { Calendar } from './components/Calendar';
 import { AppointmentForm, type FormSeed } from './components/AppointmentForm';
@@ -12,6 +12,8 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { QuickBook } from './components/QuickBook';
 import { MoveDialog } from './components/MoveDialog';
 import { SearchDialog } from './components/SearchDialog';
+import { CustomersPanel } from './components/CustomersPanel';
+import { CustomerProfileSheet } from './components/CustomerProfileSheet';
 import { findOverlap } from './domain/schedule';
 import { DateBar } from './components/DateBar';
 import { Header } from './components/Header';
@@ -131,7 +133,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [form, setForm] = useState<FormState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<Appointment | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<Appointment | null>(null);
   const [confirmUnblock, setConfirmUnblock] = useState<Appointment | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<ToastMsg | null>(null);
@@ -144,6 +146,11 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [fullDay, setFullDayState] = useState(readFullDay);
+  const [customersOpen, setCustomersOpen] = useState(false);
+  const [profile, setProfile] = useState<{ id: string; ctx: Appointment | null } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // open profiles/panels refresh whenever the diary changes (on any device)
+  useEffect(() => setRefreshKey((k) => k + 1), [salon.day.appointments]);
 
   const toggleFullDay = () =>
     setFullDayState((v) => {
@@ -207,6 +214,10 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     setForm({ seed: { staffId: appt.staffId, date: s.date, start: s.minutes, duration: 30 }, editing: appt, mode: 'full' });
   }, []);
 
+  const onCustomerTap = useCallback((appt: Appointment) => {
+    if (appt.customerId) setProfile({ id: appt.customerId, ctx: appt });
+  }, []);
+
   const runSplit = useCallback(
     async (staffId: string, blockStart: number, isSplit: boolean) => {
       setBusyKey(`${staffId}:${blockStart}`);
@@ -238,21 +249,50 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     }
   };
 
-  const doDelete = async (appt: Appointment) => {
-    setConfirmDelete(null);
+  /** cancel keeps the appointment in the customer's history; undo restores it */
+  const doCancel = async (appt: Appointment) => {
+    setConfirmCancel(null);
     setForm(null);
     try {
-      await salon.deleteAppointment(appt.id);
-      notify(he.deleted, 'ok', {
+      await salon.setAppointmentStatus(appt.id, 'cancelled');
+      setRefreshKey((k) => k + 1);
+      notify(he.cancelled, 'ok', {
         label: he.undo,
         run: () =>
-          void salon
-            .saveAppointment(toInput(appt, tz))
-            .catch((err) => notify(he.errors[toAppError(err).code], 'error')),
+          void salon.setAppointmentStatus(appt.id, 'booked').catch((err) => notify(he.errors[toAppError(err).code], 'error')),
       });
     } catch (e) {
       notify(he.errors[toAppError(e).code], 'error');
     }
+  };
+
+  const setNoShow = async (appt: Appointment, noShow: boolean) => {
+    try {
+      await salon.setAppointmentStatus(appt.id, noShow ? 'no_show' : 'booked');
+      notify(noShow ? he.noShowDone : he.arrivedDone);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      notify(he.errors[toAppError(e).code], 'error');
+    }
+  };
+
+  /** "Book again": a new booking with the customer already selected */
+  const bookAgain = (p: CustomerProfile) => {
+    if (!shop) return;
+    const last = [...p.appointments].reverse().find((a) => (a.status ?? 'booked') !== 'cancelled');
+    const len = last ? Math.round((Date.parse(last.endsAt) - Date.parse(last.startsAt)) / 60000) : 30;
+    const today = todayLocal(tz);
+    setProfile(null);
+    setCustomersOpen(false);
+    setFormError(null);
+    setForm({
+      seed: { staffId: last?.staffId ?? staff[0]?.id ?? '', date: date < today ? today : date, start: shop.dayStart, duration: len },
+      editing: null,
+      mode: 'full',
+      initialName: p.customer.name,
+      initialPhone: p.customer.phone ?? '',
+      initialCustomerId: p.customer.id,
+    });
   };
 
   /** drag-and-drop: check availability first, then ask for confirmation */
@@ -309,6 +349,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         demo={backend.mode === 'demo'}
         onSettings={() => setSettingsOpen(true)}
         onSearch={() => setSearchOpen(true)}
+        onCustomers={() => setCustomersOpen(true)}
       />
       <DateBar
         date={date}
@@ -340,6 +381,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
             fit={fullDay}
             highlightId={highlightId}
             firstVisitIds={salon.firstVisitIds}
+            onCustomerTap={onCustomerTap}
           />
         ) : (
           <p className="empty-note">{he.loading}</p>
@@ -392,7 +434,15 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
           saving={saving}
           onSave={onSave}
           onCancel={() => setForm(null)}
-          onDelete={form.editing ? () => setConfirmDelete(form.editing) : undefined}
+          onDelete={form.editing ? () => setConfirmCancel(form.editing) : undefined}
+          onOpenProfile={
+            form.editing?.customerId
+              ? () => {
+                  setProfile({ id: form.editing!.customerId!, ctx: form.editing });
+                  setForm(null);
+                }
+              : undefined
+          }
         />
       )}
 
@@ -443,13 +493,50 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         />
       )}
 
-      {confirmDelete && (
+      {confirmCancel && (
         <ConfirmDialog
-          title={he.deleteTitle}
-          message={he.deleteQuestion(confirmDelete.customerName, fmtTime(utcToLocal(confirmDelete.startsAt, tz).minutes))}
-          confirmLabel={he.confirmDelete}
-          onConfirm={() => void doDelete(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
+          title={he.cancelTitle}
+          message={he.cancelQuestion(confirmCancel.customerName, fmtTime(utcToLocal(confirmCancel.startsAt, tz).minutes))}
+          confirmLabel={he.cancelAppointment}
+          onConfirm={() => void doCancel(confirmCancel)}
+          onCancel={() => setConfirmCancel(null)}
+        />
+      )}
+
+      {customersOpen && shop && (
+        <CustomersPanel
+          backend={backend}
+          shopId={shop.id}
+          tz={tz}
+          onOpen={(id) => setProfile({ id, ctx: null })}
+          onClose={() => setCustomersOpen(false)}
+        />
+      )}
+
+      {profile && shop && (
+        <CustomerProfileSheet
+          backend={backend}
+          customerId={profile.id}
+          contextAppt={profile.ctx}
+          staff={staff}
+          tz={tz}
+          refreshKey={refreshKey}
+          onClose={() => setProfile(null)}
+          onBookAgain={bookAgain}
+          onEditAppointment={(a) => {
+            setProfile(null);
+            onAppointmentTap(a);
+          }}
+          onCancelAppointment={(a) => setConfirmCancel(a)}
+          onSetNoShow={(a, ns) => void setNoShow(a, ns)}
+          onJump={(a) => {
+            setProfile(null);
+            setCustomersOpen(false);
+            salon.setDate(utcToLocal(a.startsAt, tz).date);
+            if (filter !== 'all' && filter !== a.staffId) setFilter('all');
+            setHighlightId(a.id);
+          }}
+          onSaved={() => notify(he.customerSaved)}
         />
       )}
 

@@ -35,6 +35,7 @@ export type Cell =
 export function toDayAppointments(appts: Appointment[], date: string, tz = SALON_TZ): DayAppointment[] {
   const out: DayAppointment[] = [];
   for (const a of appts) {
+    if (a.status === 'cancelled') continue;
     const s = utcToLocal(a.startsAt, tz);
     const e = utcToLocal(a.endsAt, tz);
     if (s.date !== date) continue;

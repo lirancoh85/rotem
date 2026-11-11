@@ -76,7 +76,7 @@ describe('appointment management (full app, Hebrew UI)', () => {
     expect(screen.getByRole('button', { name: /מהטלפון אצל רותם/ })).toBeInTheDocument();
   });
 
-  it('edits, moves to Sivan and deletes with a confirmation dialog', async () => {
+  it('edits, moves to Sivan and cancels with a confirmation dialog', async () => {
     const { user, other } = setup();
     await act(() => other.createAppointment(DEMO_SHOP, {
       staffId: ROTEM.id, date: D, start: 600, duration: 30, customerName: 'רוני', customerPhone: '', service: '', notes: '',
@@ -90,10 +90,10 @@ describe('appointment management (full app, Hebrew UI)', () => {
     const moved = await screen.findByRole('button', { name: /רוני אצל סיוון, 10:00–11:00/ });
     await user.click(moved);
     dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'מחק תור' }));
-    const confirm = await screen.findByRole('dialog', { name: 'מחיקת תור' });
-    expect(confirm).toHaveTextContent('למחוק את התור של רוני בשעה 10:00?');
-    await user.click(within(confirm).getByRole('button', { name: 'מחק' }));
+    await user.click(within(dialog).getByRole('button', { name: 'בטל תור' }));
+    const confirm = await screen.findByRole('dialog', { name: 'ביטול תור' });
+    expect(confirm).toHaveTextContent('לבטל את התור של רוני בשעה 10:00?');
+    await user.click(within(confirm).getByRole('button', { name: 'בטל תור' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: /רוני/ })).not.toBeInTheDocument());
   });
 

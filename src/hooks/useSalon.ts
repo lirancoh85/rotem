@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Backend, ConnectionStatus, DayData, ErrorCode } from '../data/backend';
 import { AppError, toAppError } from '../data/backend';
 import { applyChange } from '../data/applyChange';
-import type { AppointmentInput, Shop, Staff } from '../domain/types';
+import type { AppointmentInput, AppointmentStatus, Shop, Staff } from '../domain/types';
 import { toDayAppointments, validateAppointment } from '../domain/schedule';
 import { todayLocal } from '../lib/time';
 
@@ -166,6 +166,17 @@ export function useSalon(backend: Backend, initialDate?: string) {
     [backend, guarded, tz],
   );
 
+  /** cancel (kept in the customer's history), mark a no-show, or restore to booked */
+  const setAppointmentStatus = useCallback(
+    (id: string, status: AppointmentStatus) =>
+      guarded(async () => {
+        const row = await backend.setAppointmentStatus(id, status);
+        setDay((d) => applyChange(d, { table: 'appointments', type: 'upsert', row }, dateRef.current, tz));
+        return row;
+      }),
+    [backend, guarded, tz],
+  );
+
   const setSplit = useCallback(
     (staffId: string, blockStart: number, isSplit: boolean) =>
       guarded(async () => {
@@ -198,6 +209,7 @@ export function useSalon(backend: Backend, initialDate?: string) {
     reload,
     saveAppointment,
     deleteAppointment,
+    setAppointmentStatus,
     setSplit,
     updateHours,
   };

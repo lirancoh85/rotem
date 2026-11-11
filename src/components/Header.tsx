@@ -2,7 +2,16 @@ import logo from '../assets/logo.png';
 import type { ConnectionStatus } from '../data/backend';
 import { he } from '../i18n/he';
 
-export function Header(p: { status: ConnectionStatus; demo: boolean; onSettings(): void; onSearch(): void }) {
+export function Header(p: {
+  status: ConnectionStatus;
+  demo: boolean;
+  onSettings(): void;
+  onSearch(): void;
+  onCustomers?(): void;
+  onWaitlist?(): void;
+  /** number of waiting-list requests that match a free slot right now */
+  waitlistMatches?: number;
+}) {
   return (
     <header className="app-header">
       <div className="brand">
@@ -24,6 +33,30 @@ export function Header(p: { status: ConnectionStatus; demo: boolean; onSettings(
         </svg>
         <span className="search-label">{he.search}</span>
       </button>
+      {p.onCustomers && (
+        <button type="button" className="icon-btn" onClick={p.onCustomers} aria-label={he.customers} title={he.customers} data-testid="customers-btn">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <circle cx="9" cy="8" r="3.5" />
+            <path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.5.8 2.6 2.6 3 5.2" />
+          </svg>
+        </button>
+      )}
+      {p.onWaitlist && (
+        <button
+          type="button"
+          className={`icon-btn waitlist-btn ${p.waitlistMatches ? 'has-badge' : ''}`}
+          onClick={p.onWaitlist}
+          aria-label={p.waitlistMatches ? `${he.waitlist} · ${he.waitlistMatchesBadge(p.waitlistMatches)}` : he.waitlist}
+          title={he.waitlist}
+          data-testid="waitlist-btn"
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2.5 2M9 2.5h6" />
+          </svg>
+          {!!p.waitlistMatches && <span className="badge" aria-hidden="true">{p.waitlistMatches}</span>}
+        </button>
+      )}
       <button type="button" className="icon-btn" onClick={p.onSettings} aria-label={he.settings} title={he.settings}>
         <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
           <circle cx="12" cy="12" r="3" />

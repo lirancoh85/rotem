@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { he } from '../i18n/he';
 
-export function Modal(p: { title: string; labelledBy?: string; onClose(): void; children: ReactNode; size?: 'sm' | 'md' }) {
+export function Modal(p: { title: string; labelledBy?: string; onClose(): void; children: ReactNode; size?: 'sm' | 'md' | 'side' }) {
   const ref = useRef<HTMLDivElement>(null);
   // latest onClose without re-running the mount effect (a re-render — e.g. a live
   // update from another device — must not move focus out of the field being typed in)
