@@ -61,3 +61,14 @@ npm run build:preview && npm run test:e2e                                       
 ## Logo
 
 `src/assets/logo-original.jpg` is the supplied logo. `logo.png` and `public/icons/*` are the same image, cropped to its circle with no other changes. The source is small (~165 px across the circle), so the 512 px PWA icon is upscaled. Replace `logo-original.jpg` with a higher-resolution original and regenerate for crisper icons.
+
+## Customer profiles, recurring appointments, waiting list, installable app
+
+- **Customer profiles** — tap a customer's name in the calendar (or open "לקוחות" in the header). Profile shows phone, first/last visit, completed visits, upcoming/previous appointments, cancellations and no-shows, notes and haircut preferences, and status (New / Returning / Inactive — inactive after 90 days without a visit or booking). Edit details, "קבע תור שוב", call/WhatsApp. Cancelling now keeps the appointment in history (`appointments.status`), and its slot becomes free again.
+- **Recurring appointments** — in the full booking form choose "חזרה" (every 1–4 weeks or custom; number of appointments or end date). The preview checks every date against bookings, crossed-out slots, closed weekdays (Settings), Israeli statutory rest days and opening hours; each conflict can be skipped or moved. Created atomically by `create_series` (never overwrites; a repeated request creates nothing new). Editing/cancelling asks: only this / this and following / all upcoming.
+- **Waiting list** — header clock icon. Add customers with preferred dates, time range, length and staff. Matching free slots are found automatically (badge in the header; a gentle alert after a cancellation frees a matching slot). "הצע בוואטסאפ" opens WhatsApp with a prefilled Hebrew message (wa.me link, no paid API). Mark offers accepted/declined/expired; accepting books the slot via `accept_offer`, which refuses if someone else took it first.
+- **Installable app (PWA)** — Hebrew manifest, icons, iPhone/iPad splash screens, standalone mode, service worker caching only the app's own static files (never Supabase/API data), offline screen, and writes blocked while offline.
+  - **iPhone (Safari):** Share → "הוספה למסך הבית" → "הוסף".
+  - **Android (Chrome):** ⋮ menu → "התקנת אפליקציה" (or the install button in Settings).
+
+Tests: `npm test` (UI), `npm run test:db` (real Postgres), `npm run test:e2e` (browser), `npm run build && npm run test:pwa` (PWA; set `PWA_URL=https://…` to check a deployment).

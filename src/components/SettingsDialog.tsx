@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
+import { InstallSection } from './InstallSection';
 import { fmtTime } from '../lib/time';
 import { he } from '../i18n/he';
 
@@ -62,6 +63,7 @@ export function SettingsDialog(p: {
             <span className="muted small">{he.closedDaysHint}</span>
           </fieldset>
         )}
+        <InstallSection />
         {p.demo && <p className="muted">{he.demoNote}</p>}
         <div className="form-actions">
           <button

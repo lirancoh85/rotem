@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import { initInstallCapture } from './lib/install';
+
+initInstallCapture();
 
 // Hebrew + RTL for the whole document, even when embedded in a host page
 document.documentElement.lang = 'he';

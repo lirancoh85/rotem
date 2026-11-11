@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import type { Backend } from './data/backend';
 import { toAppError } from './data/backend';
@@ -18,6 +18,9 @@ import { SeriesPreview } from './components/SeriesPreview';
 import { ScopeDialog, type Scope } from './components/ScopeDialog';
 import { WaitlistPanel } from './components/WaitlistPanel';
 import { useWaitlist } from './hooks/useWaitlist';
+import { useOnline } from './hooks/useOnline';
+import { withOfflineGuard } from './lib/offlineGuard';
+import { OfflineScreen } from './components/OfflineScreen';
 import { requestsForSlot } from './domain/waitlist';
 import type { RecurrenceRule } from './domain/recurrence';
 import { findOverlap } from './domain/schedule';
@@ -80,6 +83,7 @@ function SupabaseApp() {
   const backend = useMemo(() => (session ? new SupabaseBackend(sb) : null), [sb, session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) return <div className="splash">{he.loading}</div>;
+  if (!session && typeof navigator !== 'undefined' && navigator.onLine === false) return <OfflineScreen />;
   if (!session || !backend) return <LoginScreen sb={sb} />;
   return <SalonApp key={session.user.id} backend={backend} onSignOut={() => backend.signOut()} />;
 }
@@ -131,7 +135,15 @@ function readFilter() {
   }
 }
 
-export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend; onSignOut(): void; initialDate?: string }) {
+export function SalonApp({ backend: rawBackend, onSignOut, initialDate }: { backend: Backend; onSignOut(): void; initialDate?: string }) {
+  const online = useOnline();
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  // writes are refused while offline — there is no unsafe offline queue
+  const backend = useMemo(
+    () => withOfflineGuard(rawBackend, () => onlineRef.current && (typeof navigator === 'undefined' || navigator.onLine !== false)),
+    [rawBackend],
+  );
   const salon = useSalon(backend, initialDate);
   const { shop, staff, date } = salon;
   const tz = shop?.timezone ?? 'Asia/Jerusalem';
@@ -212,12 +224,14 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
 
   const onFreeTap = useCallback(
     (staffId: string, start: number, split: boolean) => {
+      if (!onlineRef.current) return notify(he.errors.OFFLINE, 'error');
       setFormError(null);
       setForm({ seed: { staffId, date, start, duration: split ? 15 : 30 }, editing: null, mode: 'quick' });
     },
-    [date],
+    [date, notify],
   );
   const onAppointmentTap = useCallback((appt: Appointment) => {
+    if (!onlineRef.current) return notify(he.errors.OFFLINE, 'error');
     setFormError(null);
     if (appt.isBlocked) {
       setConfirmUnblock(appt);
@@ -225,7 +239,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     }
     const s = utcToLocal(appt.startsAt);
     setForm({ seed: { staffId: appt.staffId, date: s.date, start: s.minutes, duration: 30 }, editing: appt, mode: 'full' });
-  }, []);
+  }, [notify]);
 
   const onCustomerTap = useCallback((appt: Appointment) => {
     if (appt.customerId) setProfile({ id: appt.customerId, ctx: appt });
@@ -391,6 +405,7 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
     }
   };
 
+  if (salon.fatal === 'NETWORK' || (salon.fatal && !online)) return <OfflineScreen />;
   if (salon.fatal) {
     return (
       <div className="splash">
@@ -425,6 +440,11 @@ export function SalonApp({ backend, onSignOut, initialDate }: { backend: Backend
         fullDay={fullDay}
         onToggleFullDay={toggleFullDay}
       />
+      {!online && (
+        <div className="offline-banner" role="status" data-testid="offline-banner">
+          {he.offlineBanner}
+        </div>
+      )}
       <main className={`cal-wrap ${fullDay ? 'is-fit' : ''}`} aria-busy={salon.loading}>
         {empty && !fullDay && <p className="empty-note">{he.emptyDay}</p>}
         {shop && visibleStaff.length > 0 ? (

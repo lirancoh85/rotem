@@ -12,7 +12,8 @@
     "test:db": "vitest run tests/db",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
     "typecheck": "tsc -b",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "test:pwa": "node tests/e2e/pwa-e2e.mjs"
   },
   "dependencies": {
     "@hebcal/core": "^6.16.0",

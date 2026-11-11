@@ -874,3 +874,24 @@ body.modal-open { overflow: hidden; }
 .offer-chip.st-sent { background: var(--tint-soft); color: var(--tint); }
 .offer-chip.st-declined, .offer-chip.st-expired { color: var(--muted); }
 .toast button + button { margin-inline-start: -4px; }
+
+/* ==========================================================================
+   Offline & install
+   ========================================================================== */
+.offline-banner {
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: #fff4e5; color: #8a4b06; font-size: 0.88rem; font-weight: 500; text-align: center; border-bottom: 1px solid #f5dfc0;
+}
+@media (min-width: 900px) {
+  .app:has(> .offline-banner) { grid-template-rows: auto auto minmax(0, 1fr); }
+  .offline-banner { grid-column: 1 / -1; grid-row: 2; }
+  .app:has(> .offline-banner) .cal-wrap { grid-row: 3; }
+}
+.offline-screen { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; }
+.offline-screen h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
+.offline-screen p { margin: 0; max-width: 340px; color: var(--ink-2); line-height: 1.5; }
+.offline-logo { width: 96px; height: 96px; }
+.install { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: var(--fill); }
+.install h3 { margin: 0; font-size: 1rem; }
+.install h4 { margin: 0 0 4px; font-size: 0.9rem; color: var(--ink-2); }
+.install ol { margin: 0; padding-inline-start: 20px; display: grid; gap: 4px; font-size: 0.92rem; }
