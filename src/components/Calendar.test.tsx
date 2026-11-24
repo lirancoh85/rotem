@@ -64,29 +64,30 @@ describe('15 / 30-minute rendering', () => {
     expect(daniel).toHaveTextContent('(15 דק׳)');
   });
 
-  it('shows free 30-minute blocks with a split button, and empty split halves as 15 minutes', () => {
-    setup({ dayAppts: [], splits: [split(SIVAN, '08:30')] });
+  it('shows free time as 15-minute slots by default, and a joined block as one 30-minute slot', () => {
+    setup({ dayAppts: [], splits: [split(SIVAN, '08:00', false)] });
     const sivanFree = screen.getAllByTestId('free').filter((e) => e.getAttribute('data-staff-id') === SIVAN.id);
     expect(sivanFree.slice(0, 3).map((e) => [e.getAttribute('data-start'), e.getAttribute('data-len')])).toEqual([
       ['08:00', '30'], ['08:30', '15'], ['08:45', '15'],
     ]);
-    // Rotem's 08:30 is unaffected by Sivan's split
-    const rotem0830 = screen.getAllByTestId('free').find((e) => e.getAttribute('data-staff-id') === ROTEM.id && e.getAttribute('data-start') === '08:30');
-    expect(rotem0830).toHaveAttribute('data-len', '30');
+    // Rotem's 08:00 is unaffected by Sivan's joined block
+    const rotem0800 = screen.getAllByTestId('free').find((e) => e.getAttribute('data-staff-id') === ROTEM.id && e.getAttribute('data-start') === '08:00');
+    expect(rotem0800).toHaveAttribute('data-len', '15');
+    expect(within(sivanFree[0]).getByRole('button', { name: /פיצול 08:00 של סיוון/ })).toBeInTheDocument();
     expect(within(sivanFree[1]).getByRole('button', { name: /החזרת 08:30 של סיוון/ })).toBeInTheDocument();
   });
 });
 
 describe('interaction', () => {
   it('tapping a slot in a staff column selects that staff member', async () => {
-    const p = setup({ dayAppts: [], splits: [] });
+    const p = setup({ dayAppts: [], splits: [split(SIVAN, '08:00', false)] });
     await userEvent.click(screen.getByRole('button', { name: /^סיוון, 08:00–08:30/ }));
     expect(p.onFreeTap).toHaveBeenLastCalledWith(SIVAN.id, 480, false);
-    await userEvent.click(screen.getByRole('button', { name: /^רותם, 08:30–09:00/ }));
-    expect(p.onFreeTap).toHaveBeenLastCalledWith(ROTEM.id, 510, false);
+    await userEvent.click(screen.getByRole('button', { name: /^רותם, 08:30–08:45/ }));
+    expect(p.onFreeTap).toHaveBeenLastCalledWith(ROTEM.id, 510, true);
   });
   it('split / merge buttons target only their staff member and block', async () => {
-    const p = setup({ dayAppts: [], splits: [split(ROTEM, '09:30')] });
+    const p = setup({ dayAppts: [], splits: [split(ROTEM, '09:30'), split(SIVAN, '09:00', false)] });
     await userEvent.click(screen.getByRole('button', { name: 'פיצול 09:00 של סיוון לשני תורים של 15 דקות' }));
     expect(p.onSplit).toHaveBeenCalledWith(SIVAN.id, 540);
     await userEvent.click(screen.getByRole('button', { name: 'החזרת 09:30 של רותם לתור של 30 דקות' }));

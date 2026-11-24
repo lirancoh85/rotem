@@ -25,7 +25,7 @@ export function WaitlistForm(p: {
     customerPhone: '',
     customerId: null,
     service: '',
-    duration: 30,
+    duration: 15,
     staffId: null,
     preferredDates: [today],
     timeFrom: p.dayStart,

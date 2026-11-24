@@ -31,13 +31,16 @@ describe('independent staff schedules', () => {
 });
 
 describe('15/30-minute rendering', () => {
-  it('renders an empty day as 30-minute blocks', () => {
-    expect(col(ROTEM.id)).toEqual(['free30@540-570', 'free30@570-600', 'free30@600-630', 'free30@630-660']);
+  it('renders an empty day as 15-minute slots by default', () => {
+    expect(col(ROTEM.id)).toEqual([
+      'free15@540-555', 'free15@555-570', 'free15@570-585', 'free15@585-600',
+      'free15@600-615', 'free15@615-630', 'free15@630-645', 'free15@645-660',
+    ]);
   });
-  it('renders a split block as two 15-minute cells, only for that staff member', () => {
-    const splits = [split(ROTEM, '09:00')];
-    expect(col(ROTEM.id, [], splits).slice(0, 3)).toEqual(['free15@540-555', 'free15@555-570', 'free30@570-600']);
-    expect(col(SIVAN.id, [], splits)[0]).toBe('free30@540-570');
+  it('renders a block joined to 30 minutes as one cell, only for that staff member', () => {
+    const splits = [split(ROTEM, '09:00', false)];
+    expect(col(ROTEM.id, [], splits).slice(0, 3)).toEqual(['free30@540-570', 'free15@570-585', 'free15@585-600']);
+    expect(col(SIVAN.id, [], splits)[0]).toBe('free15@540-555');
   });
   it('renders the example: two 15-minute customers for Rotem, a 30-minute one for Sivan', () => {
     const appts = [appt(ROTEM, '09:00', 15, 'דניאל'), appt(ROTEM, '09:15', 15, 'אבי'), appt(SIVAN, '09:00', 30, 'משה')];
@@ -60,12 +63,12 @@ describe('15/30-minute rendering', () => {
       'appt:ארוך@540-600', 'appt:בינוני@600-645', 'free15@645-660',
     ]);
   });
-  it('a reverted (is_split=false) block renders as 30 minutes again', () => {
+  it('a joined (is_split=false) block renders as 30 minutes', () => {
     expect(col(ROTEM.id, [], [split(ROTEM, '09:00', false)])[0]).toBe('free30@540-570');
   });
   it('offers split on free 30-minute blocks and merge only on empty split blocks', () => {
     const cells = buildColumn({
-      staffId: ROTEM.id, date: D, dayStart: 540, dayEnd: 630, splits: [split(ROTEM, '09:00'), split(ROTEM, '09:30')],
+      staffId: ROTEM.id, date: D, dayStart: 540, dayEnd: 630, splits: [split(ROTEM, '09:00'), split(ROTEM, '09:30'), split(ROTEM, '10:00', false)],
       dayAppts: toDayAppointments([appt(ROTEM, '09:30', 15)], D),
     });
     const free = cells.filter((c) => c.kind === 'free');

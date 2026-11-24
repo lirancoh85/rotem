@@ -1,4 +1,4 @@
-import { BLOCK, QUARTER, type Appointment, type SlotSplit } from './types';
+import { BLOCK, DEFAULT_SPLIT, QUARTER, type Appointment, type SlotSplit } from './types';
 import { SALON_TZ, utcToLocal } from '../lib/time';
 
 /** An appointment projected onto one salon-local day, in minutes since midnight. */
@@ -47,8 +47,10 @@ export function toDayAppointments(appts: Appointment[], date: string, tz = SALON
 
 export const blockOf = (minutes: number) => Math.floor(minutes / BLOCK) * BLOCK;
 
+/** Split state of a block: its saved row, or DEFAULT_SPLIT (15-minute slots) when there is none. */
 export function isBlockSplit(splits: SlotSplit[], staffId: string, date: string, blockStart: number) {
-  return splits.some((s) => s.staffId === staffId && s.date === date && s.blockStart === blockStart && s.isSplit);
+  const row = splits.find((s) => s.staffId === staffId && s.date === date && s.blockStart === blockStart);
+  return row ? row.isSplit : DEFAULT_SPLIT;
 }
 
 /** Can a 30-minute block be split? Not if an appointment runs across its midpoint. */
@@ -98,7 +100,7 @@ export function validateAppointment(
 
 /**
  * Builds the visible cells of one staff column between dayStart and dayEnd.
- * Unsplit free blocks are one 30-minute cell; split blocks are two 15-minute cells;
+ * Free blocks are two 15-minute cells by default; a block joined back to 30 minutes is one cell;
  * appointments are one cell spanning their full length (15/30/45/60...).
  */
 export function buildColumn(opts: {
@@ -177,8 +179,8 @@ export function durationOf(a: { startsAt: string; endsAt: string }) {
 
 /**
  * Start times where an appointment of `duration` minutes fits for one staff member.
- * Whole and half hours are always offered; :15/:45 only inside blocks that are already split
- * (a move never splits a block on its own unless the user chooses such a time).
+ * Whole and half hours are always offered; :15/:45 only inside blocks that are split (the default);
+ * a block joined to 30 minutes offers only its start.
  */
 export function freeStarts(opts: {
   dayAppts: DayAppointment[];

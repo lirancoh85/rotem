@@ -108,9 +108,14 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
       expect(await splitState(phone, ROTEM, D, '09:00')).toBe(true);
     });
 
-    it('splitting Rotem’s block does not split Sivan’s block', async () => {
-      await setSplit(tablet, ROTEM, D, '09:00', true);
-      expect(await splitState(phone, SIVAN, D, '09:00')).toBe(false);
+    it('blocks are two 15-minute slots by default', async () => {
+      expect(await splitState(phone, ROTEM, D, '09:00')).toBe(true);
+    });
+
+    it('joining Rotem’s block to 30 minutes does not join Sivan’s block', async () => {
+      await setSplit(tablet, ROTEM, D, '09:00', false);
+      expect(await splitState(phone, ROTEM, D, '09:00')).toBe(false);
+      expect(await splitState(phone, SIVAN, D, '09:00')).toBe(true);
     });
 
     it('splitting never creates an appointment', async () => {
@@ -128,7 +133,9 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
       expect(rows.map((r) => r.customer_name)).toEqual(['דניאל', 'אבי']);
     });
 
-    it('booking a 15-minute appointment automatically marks the block split', async () => {
+    it('booking a 15-minute appointment re-splits a block joined to 30 minutes', async () => {
+      await setSplit(tablet, SIVAN, D, '09:00', false);
+      await setSplit(tablet, ROTEM, D, '09:00', false);
       await book(tablet, SIVAN, D, '09:15', '09:30');
       expect(await splitState(phone, SIVAN, D, '09:00')).toBe(true);
       expect(await splitState(phone, ROTEM, D, '09:00')).toBe(false);
@@ -140,7 +147,9 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
       expect(await splitState(tablet, ROTEM, D, '09:30')).toBe(true);
     });
 
-    it('cannot split a block that is occupied by a 30-minute appointment', async () => {
+    it('cannot split a joined block that is occupied by a 30-minute appointment', async () => {
+      await setSplit(tablet, ROTEM, D, '09:00', false);
+      await setSplit(tablet, SIVAN, D, '09:00', false);
       await book(tablet, ROTEM, D, '09:00', '09:30');
       const err = await errorOf(setSplit(phone, ROTEM, D, '09:00', true));
       expect(err?.message).toBe('BLOCK_OCCUPIED');
@@ -149,8 +158,13 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
     });
 
     it('cannot split under a longer appointment that crosses the midpoint', async () => {
+      await setSplit(tablet, ROTEM, D, '10:30', false);
       await book(tablet, ROTEM, D, '10:00', '11:00');
       expect((await errorOf(setSplit(tablet, ROTEM, D, '10:30', true)))?.message).toBe('BLOCK_OCCUPIED');
+      // deleting the row returns the block to the default (split), so it is rejected the same way
+      expect((await errorOf(tablet.query(
+        `delete from public.slot_splits where staff_member_id=$1 and block_start_time='10:30'`, [ROTEM])))?.message)
+        .toBe('BLOCK_OCCUPIED');
     });
 
     it('an empty split block returns to 30 minutes', async () => {
@@ -163,19 +177,17 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
       const id = await book(tablet, ROTEM, D, '09:00', '09:15');
       expect((await errorOf(setSplit(tablet, ROTEM, D, '09:00', false)))?.message)
         .toBe('BLOCK_HAS_SPLIT_APPOINTMENTS');
-      expect((await errorOf(tablet.query(
-        'delete from public.slot_splits where staff_member_id=$1', [ROTEM])))?.message)
-        .toBe('BLOCK_HAS_SPLIT_APPOINTMENTS');
       await tablet.query('delete from public.appointments where id=$1', [id]);
       expect(await errorOf(setSplit(tablet, ROTEM, D, '09:00', false))).toBeNull();
     });
 
     it('uses local Israel time across daylight-saving changes', async () => {
-      // July = UTC+3. A 15-min appointment at local 09:00 splits the local 09:00 block.
+      // July = UTC+3. A 15-min appointment at local 09:00 re-splits the joined local 09:00 block.
+      await setSplit(tablet, ROTEM, '2026-07-01', '09:00', false);
       await book(tablet, ROTEM, '2026-07-01', '09:00', '09:15');
       const { rows } = await tablet.query(
-        `select to_char(block_start_time,'HH24:MI') as t from public.slot_splits where date='2026-07-01'`);
-      expect(rows).toEqual([{ t: '09:00' }]);
+        `select to_char(block_start_time,'HH24:MI') as t, is_split from public.slot_splits where date='2026-07-01'`);
+      expect(rows).toEqual([{ t: '09:00', is_split: true }]);
     });
   });
 
@@ -205,6 +217,7 @@ describe.skipIf(!DB_URL)('database: scheduling rules (real Postgres)', () => {
     });
 
     it('a split racing an uncommitted 30-minute booking is rejected after it commits', async () => {
+      await setSplit(tablet, ROTEM, D, '16:00', false);
       await tablet.query('begin');
       await book(tablet, ROTEM, D, '16:00', '16:30');
       const split = errorOf(setSplit(phone, ROTEM, D, '16:00', true)); // blocks on staff lock

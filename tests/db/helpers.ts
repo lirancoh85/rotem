@@ -102,7 +102,7 @@ export async function splitState(c: pg.Client, staff: string, date: string, bloc
     `select is_split from public.slot_splits where staff_member_id=$1 and date=$2 and block_start_time=$3`,
     [staff, date, block],
   );
-  return rows[0]?.is_split ?? false;
+  return rows[0]?.is_split ?? true; // no row = the default: 15-minute slots
 }
 
 export async function errorOf(p: Promise<unknown>): Promise<{ code?: string; message: string } | null> {

@@ -145,7 +145,7 @@ console.log('two devices (two windows sharing the demo backend)');
     await tablet.click(`[data-testid=free][data-staff-id="${SIVAN}"][data-start="14:00"] .free-main`);
     await tablet.fill('input[placeholder="לדוגמה: דניאל"]', 'בדיקת סנכרון');
     await tablet.keyboard.press('Enter');
-    await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיוון, 14:00–14:30/ }).waitFor({ timeout: 3000 });
+    await phone.getByRole('button', { name: /בדיקת סנכרון אצל סיוון, 14:00–14:15/ }).waitFor({ timeout: 3000 });
   });
   const dragTo = async (page, sel, targetStaff, targetTime, touch) => {
     const card = page.locator(sel);
@@ -181,8 +181,8 @@ console.log('two devices (two windows sharing the demo backend)');
     await dlg.waitFor({ timeout: 3000 });
     assert.match(await dlg.innerText(), /להעביר את התור של גרירה אל סיוון/);
     await dlg.getByRole('button', { name: 'העבר' }).click();
-    await tablet.getByRole('button', { name: /גרירה אצל סיוון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
-    await phone.getByRole('button', { name: /גרירה אצל סיוון, 18:30–19:00/ }).waitFor({ timeout: 3000 });
+    await tablet.getByRole('button', { name: /גרירה אצל סיוון, 18:30–18:45/ }).waitFor({ timeout: 3000 });
+    await phone.getByRole('button', { name: /גרירה אצל סיוון, 18:30–18:45/ }).waitFor({ timeout: 3000 });
   });
 
   await check('drag-and-drop by touch (long-press, then drag): Rotem → Sivan', async () => {
@@ -239,17 +239,18 @@ console.log('two devices (two windows sharing the demo backend)');
     await phone.getByRole('button', { name: 'חסום משבצת' }).click();
     await tablet.locator(`[data-testid=blocked][data-staff-id="${ROTEM}"][data-start="16:00"]`).waitFor({ timeout: 3000 });
   });
-  await check('splitting on the phone appears on the tablet (Rotem only)', async () => {
-    await phone.getByRole('button', { name: 'פיצול 15:00 של רותם לשני תורים של 15 דקות' }).click();
-    await tablet.locator(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="15:15"]`).waitFor({ timeout: 3000 });
-    assert.equal(await tablet.locator(`[data-testid=free][data-staff-id="${SIVAN}"][data-start="15:00"]`).getAttribute('data-len'), '30');
+  await check('joining to 30 minutes on the phone appears on the tablet (Rotem only)', async () => {
+    await phone.getByRole('button', { name: 'החזרת 15:00 של רותם לתור של 30 דקות' }).click();
+    await tablet.locator(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="15:00"][data-len="30"]`).waitFor({ timeout: 3000 });
+    assert.equal(await tablet.locator(`[data-testid=free][data-staff-id="${SIVAN}"][data-start="15:00"]`).getAttribute('data-len'), '15');
   });
-  await check('reverting to 30 minutes on the tablet appears on the phone', async () => {
-    await tablet.getByRole('button', { name: 'החזרת 15:00 של רותם לתור של 30 דקות' }).click();
-    await phone.locator(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="15:00"][data-len="30"]`).waitFor({ timeout: 3000 });
+  await check('splitting back to 15 minutes on the tablet appears on the phone', async () => {
+    await tablet.getByRole('button', { name: 'פיצול 15:00 של רותם לשני תורים של 15 דקות' }).click();
+    await phone.locator(`[data-testid=free][data-staff-id="${ROTEM}"][data-start="15:15"]`).waitFor({ timeout: 3000 });
   });
   await check('cancelling on the phone removes it from the tablet', async () => {
-    await phone.getByRole('button', { name: /בדיקת סנכרון/ }).click();
+    // tap the card away from the name (the name opens the customer profile)
+    await phone.getByRole('button', { name: /בדיקת סנכרון/ }).click({ position: { x: 6, y: 6 } });
     await phone.getByRole('button', { name: 'בטל תור' }).click();
     await phone.getByRole('dialog', { name: 'ביטול תור' }).getByRole('button', { name: 'בטל תור' }).click();
     await tablet.getByRole('button', { name: /בדיקת סנכרון/ }).waitFor({ state: 'detached', timeout: 3000 });

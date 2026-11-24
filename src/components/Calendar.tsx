@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Appointment, SlotSplit, Staff } from '../domain/types';
 import { QUARTER } from '../domain/types';
-import { buildColumn, findOverlap, snapStart, type Cell, type DayAppointment } from '../domain/schedule';
+import { buildColumn, findOverlap, isBlockSplit, snapStart, type Cell, type DayAppointment } from '../domain/schedule';
 import { fmtTime, durationLabel } from '../lib/time';
 import { he } from '../i18n/he';
 
@@ -260,9 +260,7 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
   );
 
   // which quarter labels deserve emphasis (split somewhere in that block)
-  const splitBlocks = new Set(
-    p.splits.filter((s) => s.isSplit && p.staff.some((st) => st.id === s.staffId)).map((s) => s.blockStart),
-  );
+  const isSplitForAnyone = (blockStart: number) => p.staff.some((st) => isBlockSplit(p.splits, st.id, p.date, blockStart));
 
   const quarters: number[] = [];
   for (let m = rangeStart; m < rangeEnd; m += QUARTER) quarters.push(m);
@@ -304,7 +302,7 @@ export const Calendar = memo(function Calendar(p: CalendarProps) {
 
       {quarters.map((m) => {
         const isBlock = m % 30 === 0;
-        const showQuarter = !isBlock && splitBlocks.has(m - QUARTER);
+        const showQuarter = !isBlock && isSplitForAnyone(m - QUARTER);
         return (
           <div
             key={m}

@@ -110,6 +110,8 @@ export interface Customer {
 export const DURATIONS = [15, 30, 45, 60] as const;
 export const QUARTER = 15;
 export const BLOCK = 30;
+/** A 30-minute block with no saved split state shows as two 15-minute slots. */
+export const DEFAULT_SPLIT = true;
 
 export interface SeriesOccurrence {
   index: number;
