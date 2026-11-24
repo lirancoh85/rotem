@@ -6,9 +6,15 @@ import { DemoBackend, DEMO_SHOP, DEMO_STAFF, memoryStore, seedDemoData } from '.
 import { matchesForRequest, offerMessage, requestsForSlot } from './domain/waitlist';
 import { whatsappLink } from './lib/contact';
 import type { WaitlistRequest } from './domain/types';
+import { addDays, todayLocal } from './lib/time';
 
 const [ROTEM, SIVAN] = DEMO_STAFF;
-const DAY = '2026-11-16'; // a Monday, in the future
+/** The next Monday after today, so the date is always in the future. */
+const DAY = (() => {
+  let d = addDays(todayLocal(), 1);
+  while (new Date(`${d}T12:00:00Z`).getUTCDay() !== 1) d = addDays(d, 1);
+  return d;
+})();
 const req = (over: Partial<WaitlistRequest> = {}): WaitlistRequest => ({
   id: 'r1', customerId: null, customerName: 'יעל', customerPhone: '052-3434343', service: 'תספורת', duration: 30, staffId: null,
   preferredDates: [DAY], timeFrom: 600, timeTo: 720, notes: null, status: 'waiting', createdAt: '', offers: [], ...over,

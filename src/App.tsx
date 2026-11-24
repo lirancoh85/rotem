@@ -357,7 +357,7 @@ export function SalonApp({ backend: rawBackend, onSignOut, initialDate }: { back
   const bookAgain = (p: CustomerProfile) => {
     if (!shop) return;
     const last = [...p.appointments].reverse().find((a) => (a.status ?? 'booked') !== 'cancelled');
-    const len = last ? Math.round((Date.parse(last.endsAt) - Date.parse(last.startsAt)) / 60000) : 30;
+    const len = last ? Math.round((Date.parse(last.endsAt) - Date.parse(last.startsAt)) / 60000) : 15;
     const today = todayLocal(tz);
     setProfile(null);
     setCustomersOpen(false);

@@ -271,8 +271,9 @@ button { cursor: pointer; touch-action: manipulation; }
 .free-main:focus-visible { color: var(--muted); }
 .free-main:hover::before { opacity: 1; }
 .free-main:active { background: var(--fill); }
-.cell.free.is-split .free-main { background: var(--split-bg); }
-.free-len { font-size: 0.7rem; font-weight: 500; padding: 0 7px; border-radius: 99px; line-height: 1.6; background: var(--fill); color: var(--ink-2); }
+/* 15-minute slots are the default, so they get no special fill */
+.free-len { font-size: 0.7rem; font-weight: 500; padding: 0 7px; border-radius: 99px; line-height: 1.6; background: transparent; color: var(--faint); }
+.free-main:hover .free-len { color: var(--muted); }
 
 /* split / merge: quiet tinted text controls */
 .chip-action {

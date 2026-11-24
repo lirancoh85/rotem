@@ -138,10 +138,13 @@ describe('two devices stay in sync (demo backend, shared store)', () => {
     expect(phoneView.appointments).toHaveLength(0);
   });
 
-  it('a 15-minute booking on one device shows the split block on the other', async () => {
+  it('a 15-minute booking in a block joined to 30 minutes re-splits it on the other device', async () => {
     const { tablet, phone } = twoDevices();
     let phoneView: DayData = empty;
     phone.subscribe(DEMO_SHOP.id, (e) => (phoneView = applyChange(phoneView, e, D, TZ)), () => {});
+    await tablet.setSplit(DEMO_SHOP, DEMO_STAFF[0].id, D, 540, false);
+    await flush();
+    expect(phoneView.splits).toMatchObject([{ blockStart: 540, isSplit: false }]);
     await tablet.createAppointment(DEMO_SHOP, input(DEMO_STAFF[0].id, 555, 15, 'אבי'));
     await flush();
     expect(phoneView.splits).toMatchObject([{ blockStart: 540, isSplit: true }]);
@@ -158,6 +161,7 @@ describe('two devices stay in sync (demo backend, shared store)', () => {
 
   it('enforces split rules like the database', async () => {
     const { tablet } = twoDevices();
+    await tablet.setSplit(DEMO_SHOP, DEMO_STAFF[0].id, D, 540, false); // join to 30
     await tablet.createAppointment(DEMO_SHOP, input(DEMO_STAFF[0].id, 540, 30));
     await expect(tablet.setSplit(DEMO_SHOP, DEMO_STAFF[0].id, D, 540, true)).rejects.toMatchObject({ code: 'BLOCK_OCCUPIED' });
     await tablet.createAppointment(DEMO_SHOP, input(DEMO_STAFF[0].id, 600, 15));

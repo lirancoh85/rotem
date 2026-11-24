@@ -87,7 +87,8 @@ describe('2. moving appointments', () => {
     const day = toDayAppointments([appt(R, '09:00', 30), appt(S, '09:00', 60)], D);
     const times = freeStarts({ dayAppts: day, splits: [split(S, '10:00')], staffId: S.id, date: D, duration: 30, dayStart: 540, dayEnd: 660 });
     expect(times).toEqual([600, 615, 630]); // 10:15 offered because Sivan's 10:00 block is split
-    expect(snapStart(560, { splits: [], staffId: R.id, date: D, duration: 30, min: 480, max: 1200 })).toBe(570);
+    expect(snapStart(560, { splits: [], staffId: R.id, date: D, duration: 30, min: 480, max: 1200 })).toBe(555); // 15-minute grid by default
+    expect(snapStart(560, { splits: [split(R, '09:00', false)], staffId: R.id, date: D, duration: 30, min: 480, max: 1200 })).toBe(570); // joined block: 30-minute grid
     expect(snapStart(611, { splits: [split(R, '10:00')], staffId: R.id, date: D, duration: 15, min: 480, max: 1200 })).toBe(615);
   });
 

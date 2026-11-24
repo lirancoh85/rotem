@@ -4,6 +4,7 @@
  */
 import type { Backend, ChangeEvent, ConnectionStatus, DayData } from './backend';
 import { AppError } from './backend';
+import { DEFAULT_SPLIT } from '../domain/types';
 import type {
   Appointment,
   AppointmentInput,
@@ -259,11 +260,11 @@ export class DemoBackend implements Backend {
       updatedAt: new Date().toISOString(),
     };
     d.appointments = [...d.appointments.filter((a) => a.id !== appt.id), appt];
-    // same as the DB trigger: boundaries at :15/:45 mark their block as split
+    // same as the DB trigger: boundaries at :15/:45 re-split a block that was joined to 30 minutes
     const changedSplits: SlotSplit[] = [];
     for (const blockStart of blocksRequiringSplit(input.start, input.start + input.duration)) {
       const cur = d.splits.find((s) => s.staffId === input.staffId && s.date === input.date && s.blockStart === blockStart);
-      if (!cur?.isSplit) {
+      if (cur && !cur.isSplit) {
         const s: SlotSplit = { shopId: shop.id, staffId: input.staffId, date: input.date, blockStart, isSplit: true };
         d.splits = [...d.splits.filter((x) => x !== cur), s];
         changedSplits.push(s);
@@ -298,7 +299,7 @@ export class DemoBackend implements Backend {
     const d = this.data();
     const dayAppts = toDayAppointments(d.appointments, date, shop.timezone);
     const cur = d.splits.find((s) => s.staffId === staffId && s.date === date && s.blockStart === blockStart);
-    const was = cur?.isSplit ?? false;
+    const was = cur?.isSplit ?? DEFAULT_SPLIT;
     if (isSplit && !was && !canSplitBlock(dayAppts, staffId, blockStart)) throw new AppError('BLOCK_OCCUPIED');
     if (!isSplit && was && !canMergeBlock(dayAppts, staffId, blockStart)) {
       throw new AppError('BLOCK_HAS_SPLIT_APPOINTMENTS');

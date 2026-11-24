@@ -6,7 +6,7 @@ Hebrew, full RTL, 24-hour times, `Asia/Jerusalem`.
 ## What it does
 
 - **Three-column day view**, right to left: **שעה | רותם | סיון**. Each staff member has an independent schedule; both can have appointments at the same time.
-- **30-minute blocks by default.** Any free block can be split into two 15-minute slots (✂ 15 button on the cell, or the **פצל ל־15 דקות** switch in the booking form). Each half can hold a different customer. Splitting is per staff member, is stored in Supabase, and never creates an appointment. An empty split block can return to 30 minutes (□ 30 button).
+- **15-minute slots by default.** Every half hour shows as two 15-minute slots, and each can hold a different customer. Any empty half hour can be joined into one 30-minute slot (□ 30 button on the cell), and split back (✂ 15). Joining is per staff member, is stored in Supabase, and never creates an appointment; a block with nothing saved is 15 minutes.
 - Appointments of **15 / 30 / 45 / 60 minutes** (longer existing ones are kept). A 30-minute appointment may start at :15 and span two 15-minute intervals.
 - **Tap a free slot → type a name → Enter.** Staff, date, time and duration are prefilled from the tapped cell. Tap an appointment to edit, move (change staff/date/time) or delete it (with confirmation and an undo).
 - **Realtime sync** between the tablet and phones for new, edited, moved and deleted appointments, splits and reverts. If two devices book the same staff member at the same time, only one succeeds and the other gets a clear Hebrew message.
@@ -18,9 +18,9 @@ Hebrew, full RTL, 24-hour times, `Asia/Jerusalem`.
 |---|---|
 | No overlapping appointments **per staff member** | `appointments_no_overlap_per_staff` exclusion constraint (GiST, `btree_gist`) |
 | Boundaries on the 15-minute grid, same-day, ≤ 4h | check constraints + `appointments_before_write` |
-| Booking at :15/:45 marks its 30-minute block as split | `appointments_after_write` trigger |
-| Can't split a block an appointment runs across | `slot_splits_guard` → `BLOCK_OCCUPIED` |
-| Can't revert a block while a 15-minute appointment needs it | `slot_splits_guard` → `BLOCK_HAS_SPLIT_APPOINTMENTS` |
+| Booking at :15/:45 re-splits a block that was joined to 30 minutes | `appointments_after_write` trigger |
+| Can't split a joined block an appointment runs across | `slot_splits_guard` → `BLOCK_OCCUPIED` |
+| Can't join a block to 30 while a 15-minute appointment needs it | `slot_splits_guard` → `BLOCK_HAS_SPLIT_APPOINTMENTS` |
 | Concurrent writes for one staff member are serialized | `pg_advisory_xact_lock` per staff member |
 | Only salon members can read or write; anonymous visitors get nothing | RLS via `shop_members` |
 
